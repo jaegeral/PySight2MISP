@@ -12,6 +12,12 @@ To get the indicators, IOCs etc from iSight to the MISP system
 
 # Roadmap
 
+##short term
+
 * fix [Issues](issues)
 * add C2 as individual attribute based tag
 * add written report details per event
+
+## long term
+
+* migrate stuff to an MISP import module
