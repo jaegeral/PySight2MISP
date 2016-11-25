@@ -9,6 +9,8 @@ To get the indicators, IOCs etc from iSight to the MISP system
 # How
 
     see INSTALL.md
+    
+You do not need an iSight Account to test the script, there will be test data to test with e.g. a MISP VM.
 
 # Roadmap
 
