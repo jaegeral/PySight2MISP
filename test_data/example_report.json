@@ -1,0 +1,65 @@
+{
+	"success" : true,
+	"message" : {
+		"report" : {
+			"reportId" : "16-00034512",
+			"title" : "bB_1234567890- Malware Overview",
+			"publishDate" : "October 12, 2016 12:28:00 AM",
+			"ThreatScape" : {
+				"product" : ["ThreatScape Critical Infrastructure", "ThreatScape Cyber Crime", "ThreatScape Cyber Espionage", "ThreatScape Enterprise", "ThreatScape Hacktivism", "ThreatScape Vulnerability and Exploitation"]
+			},
+			"audience" : ["Operational"],
+			"version" : "1",
+			"intelligenceType" : "overview",
+			"reportType" : "Malware Overview",
+			"threatDescription" : "The description for malware",
+			"tagSection" : {
+				"main" : {
+					"affectedIndustries" : {
+						"affectedIndustry" : ["Financial Services >> Retail Banks/ATMs/Credit Cards", "Agriculture/Farming/Forestry/Paper", "Pharmaceutical and Bio Technology", "Retail and Hospitality/Consumer Goods/Travel/Gaming/Food & Beverage", "Financial Services"]
+					},
+					"operatingSystems" : {
+						"operatingSystem" : ["Windows", "Linux", "Android", "Mac", "ios"]
+					},
+					"roles" : {
+						"role" : ["Dropper", "Backdoor", "Uploader"]
+					},
+					"malwareCapabilities" : {
+						"malwareCapability" : ["Anti-AV capabilities", "Anti-forensic capabilities", "Data theft capabilities", "Anti-VM capabilities"]
+					},
+					"detectionNames" : {
+						"detectionName" : [{
+								"vendor" : "FireEye",
+								"name" : "qazx"
+							}
+						]
+					},
+					"malwareFamilies" : {
+						"malwareFamily" : [{
+								"id" : "554e652a-4657-4a2f-9874-ad081ba82daa",
+								"name" : "bB_1234567890-",
+								"aliases" : ["aA~!@#$%^&*()_+{}|:\"<>?`1234567890-=[]\\;'./"]
+							}
+						]
+					}
+				}
+			},
+			"relations" : {
+				"malwareFamilies" : [{
+						"name" : "cC_1234567890-",
+						"id" : "3a440317-dd71-4c01-9171-6731802d670e"
+					}, {
+						"name" : "Panda Zeus",
+						"id" : "f6bb6718-4551-41a1-b679-dded34104ed1"
+					}
+				],
+				"actors" : [{
+						"name" : "Cracka",
+						"id" : "2724847a-8a3b-40ec-8ac3-d50ba5ffd1c8"
+					}
+				]
+			},
+			"copyright" : "\u00a9 Copyright 2016 FireEye, Inc. All rights reserved."
+		}
+	}
+}
