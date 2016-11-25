@@ -1,0 +1,7 @@
+keys.py
+config.cfg
+*.*~
+*.pyc
+*.py~
+reports/*
+debug
