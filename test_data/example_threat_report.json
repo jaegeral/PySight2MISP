@@ -1,0 +1,88 @@
+{
+	"success" : true,
+	"message" : {
+		"report" : {
+			"reportId" : "Intel-1162518",
+			"title" : "Overview of Anti-Israel Hacktivist Group Izzah Hackers",
+			"execSummary" : "FireEye believes that Middle-East focused hacktivist group \"Izzah Hackers\" successfully perpetrated or attempted to perpetrate multiple attacks against websites affiliated with Israeli government-affiliated and corporate entities as a part of #OpSaveGaza and #OpIsrael.",
+			"ThreatScape" : {
+				"product" : ["ThreatScape Hacktivism"]
+			},
+			"audience" : ["Fusion"],
+			"publishDate" : "July 25, 2014 05:41:32 PM",
+			"version" : "1",
+			"overview" : "<p>FireEye believes that Middle East-focused hacktivist group \"Izzah Hackers\" successfully perpetrated (or attempted to perpetrate) multiple attacks against websites affiliated with Israeli entities as a part of #OpSaveGaza and #OpIsrael. Although many of its claims are unverifiable, we believe that the Izzah Hackers group has successfully conducted numerous low to moderate sophistication attacks, using techniques including distributed denial-of-service (DDoS), cross-site scripting (XSS) and SQL injection (SQLi). The group has targeted websites affiliated with various other organizations perceived to be anti-Islamic, including the Sri Lankan and Chinese governments. Izzah Hackers loosely affiliates with AnonGhost in support of named Anonymous operations, but it often acts independently. FireEye believes that Izzah Hackers will continue to target government-affiliated and independent entities if these entities receive media attention for behavior perceived as anti-Islamic.</p>",
+			"threatDetail" : "<p><strong>Izzah Hackers: Low to Moderately Sophisticated Group Using DDoS, XSS and SQLi with Some Success</strong></p>\n\n<p>FireEye judges that Izzah Hackers is a low to moderate sophistication hacktivist group claiming to reside in Saudi Arabia. The group likely uses multiple techniques to perpetrate its attacks, including DDoS , SQLi and XSS.</p>\n\n<ul type=\"disc\">\n<li>We believe that Izzah Hackers conducted multiple successful DDoS attacks against Israeli websites as part of #OpSaveGaza and #OpIsrael in June and July 2014. \n\n<ul type=\"circle\">\n<li>In June and July 2014, Izzah Hackers claimed to have used DDoS attacks to render inaccessible the websites of multiple Israeli defense industry companies, including Israeli Military Industries, Archidatex, APT, Aviation Consulting and Services, Albatronics and Aeronautics Defense System as part of #OpSaveGaza and #OpIsrael; FireEye observed that these companies' websites were inaccessible from multiple IP addresses, including IP addresses based in Israel, immediately after the reported attacks.</li>\n\n<li>On July 2, 2014, Izzah Hackersreflective XSS and SQLi of poorly defended websites and databases. Regardless, government-affiliated, corporate and independent entities who receive media attention for actions perceived as anti-Islamic should be aware of the actions of Izzah Hackers and affiliated groups.</p>\n\n<p><strong>Information Cut-Off Date: July 15, 2014</strong></p>",
+			"reportType" : "Current Intelligence",
+			"keyPoints" : "<ul>\n<li>Although many of the group's claims are unverifiable, we judge that Izzah Hackers has successfully conducted some low to moderate sophistication distributed denial-of-service (DDoS), cross-site scripting (XSS) and SQL injection (SQLi) attacks against websites affiliated with Israeli government-affiliated and corporate entities.</li>\n\n<li>The hacktivist group \"Izzah Hackers\" is a Middle East-focused hacktivist group that has conducted successful DDoS attacks against Israeli defense contractor websites as a part of #OpSaveGaza and #OpIsrael, as well as targeting other governments, corporations and independent entities it perceives as anti-Islamic.</li>\n\n<li>Izzah Hackers is loosely affiliated with entities such as AnonGhost, participating in named Anonymous operations including #OpSaveGaza, #OpIsrael, #OpSriLanka and #OpRohingya, although it does not do so exclusively.</li>\n\n<li>Izzah Hackers will likely continue to attempt similar attacks against the aforementioned targets, as well as any entities highlighted in media coverage for perceived anti-Islamic behavior.</li>\n</ul>",
+			"tagSection" : {
+				"main": {
+					"languages": {
+						"language": [
+							"English"
+						]
+					},
+					"affectedIndustries": {
+						"affectedIndustry": [
+							"Consumer Goods >> Automobiles & Parts >> Automobile & Parts >> Automobiles",
+							"Government"
+						]
+					},
+					"affectedSystems": {
+						"affectedSystem": [
+							"Enterprise System >> Application Layer",
+							"Enterprise System >> Database Layer"
+						]
+					},
+					"impacts": {
+						"impact": [
+							"Brand or Image Degradation",
+							"Data Breach or Compromise",
+							"Disruption of Service/Operations"
+						]
+					},
+					"intents": {
+						"intent": [
+							"Degradation",
+							"Disruption",
+							"Harassment",
+							"Unauthorized Access"
+						]
+					},
+					"motivations": {
+						"motivation": [
+							"Ideological >> Religious",
+							"Political"
+						]
+					},
+					"sourceGeographies": {
+						"sourceGeography": [
+							"Saudi Arabia"
+						]
+					},
+					"targetedInformations": {
+						"targetedInformation": [
+							"Information Assets >> Email Lists / Archives",
+							"Information Assets >> User Credentials"
+						]
+					},
+					"ttps": {
+						"ttp": [
+							"Threat Activity >> Distributed Denial-of-Service (DDoS) Attack",
+							"Threat Activity >> Data Breach",
+							"Threat Activity >> Doxing",
+							"Tools >> Malware >> DoS/DDoS"
+						]
+					},
+					"threatSources": {
+						"threatSource": [
+							"Hacktivist"
+						]
+					}
+				}
+			},
+			"copyright" : "\u00a9 Copyright 2016 FireEye, Inc. All rights reserved.",
+			"intelligenceType" : "threat"
+		}
+	}
+}

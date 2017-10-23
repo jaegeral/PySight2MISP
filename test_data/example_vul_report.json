@@ -1,0 +1,114 @@
+{
+	"success" : true,
+	"message" : {
+		"report" : {
+			"reportId" : "15-00009484",
+			"title" : "IBM WebSphere eXtreme Scale 8.6 Authentication Issues Vulnerability",
+			"execSummary" : "An authentication issues vulnerability exists within IBM WebSphere eXtreme Scale 8. 6 and earlier that, when exploited, allows an attacker to remotely conduct brute force attacks and bypass password security restrictions.",
+			"ThreatScape" : {
+				"product" : ["ThreatScape Vulnerability And Exploitation"]
+			},
+			"audience" : ["Vulnerability"],
+			"publishDate" : "November 14, 2015 12:54:00 PM",
+			"version" : "2",
+			"overview" : "An authentication issues vulnerability exists within IBM WebSphere eXtreme Scale 8.6 and earlier that, when exploited, allows an attacker to remotely conduct brute force attacks and bypass password security restrictions. Exploit code is not publicly available. Mitigation options include a vendor fix. Exploitation Rating: No Known\niSIGHT Partners considers this a Low-risk vulnerability due to the limited impact of exploitation. Customers with specific questions regarding this vulnerability can contact the Vulnerability & Exploitation Team at analystaccess@isightpartners.com.",
+			"previousVersionSection" : {
+				"previousVersion" : [{
+						"versionNumber" : "1.0",
+						"title" : "IBM WebSphere eXtreme Scale 8.6 Authentication Issues Vulnerability",
+						"publishDate" : "September 14, 2015 03:11:00 PM"
+					}
+				]
+			},
+			"version1PublishDate" : "September 14, 2015 03:11:00 PM",
+			"sourceSection" : {
+				"source" : [{
+						"date" : "September 08, 2015 11:00:00 AM",
+						"urls" : {
+							"url" : ["https://www-304.ibm.com/support/docview.wss?uid=swg21966045"]
+						},
+						"title" : "IBM Corp."
+					}, {
+						"date" : "November 14, 2015 02:00:00 PM",
+						"description" : "1966044",
+						"urls" : {
+							"url" : ["https://www-304.ibm.com/support/docview.wss?uid=swg21966044"]
+						},
+						"title" : "IBM Corp."
+					}
+				]
+			},
+			"technologySection" : {
+				"technologies" : [{
+						"vendor" : "ibm",
+						"cpeTitle" : "ibm websphere_extreme_scale 8.5.0",
+						"technologyName" : "websphere_extreme_scale 8.5.0",
+						"cpe" : "cpe:2.3:a:ibm:websphere_extreme_scale:8.5.0:*:*:*:*:*:*:*"
+					}, {
+						"vendor" : "ibm",
+						"cpeTitle" : "ibm websphere_extreme_scale 8.6.0",
+						"technologyName" : "websphere_extreme_scale 8.6.0",
+						"cpe" : "cpe:2.3:a:ibm:websphere_extreme_scale:8.6.0:*:*:*:*:*:*:*"
+					}, {
+						"vendor" : "ibm",
+						"cpeTitle" : "ibm websphere_extreme_scale 7.1.1",
+						"technologyName" : "websphere_extreme_scale 7.1.1",
+						"cpe" : "cpe:2.3:a:ibm:websphere_extreme_scale:7.1.1:*:*:*:*:*:*:*"
+					}, {
+						"vendor" : "ibm",
+						"cpeTitle" : "ibm websphere_extreme_scale 7.1.0",
+						"technologyName" : "websphere_extreme_scale 7.1.0",
+						"cpe" : "cpe:2.3:a:ibm:websphere_extreme_scale:7.1.0:*:*:*:*:*:*:*"
+					}
+				]
+			},
+			"vulnerableProducts" : "IBM reports that WebSphere eXtreme Scale versions 7.1.0, 7.1.1, 8.5 and 8.6 are vulnerable.",
+			"mitigations" : {
+				"mitigation" : ["Patch"]
+			},
+			"mitigationDetails" : "Aside from the available vendor fix, iSIGHT Partners is unaware of any alternate mitigation procedures for this vulnerability.",
+			"vulnerabilityTypes" : {
+				"vulnerabilityType" : "Authentication Issues"
+			},
+			"vendorFix" : "IBM released a fix that reportedly addresses this vulnerability. The fix, or information on obtaining the fix, can be retrieved from the following location:",
+			"vendorFixUrls" : {
+				"vendorFixUrl" : [{
+						"name" : "IBM WebSphere eXtreme Scale (1966044) Security Update Information ",
+						"url" : "https://www-304.ibm.com/support/docview.wss?uid=swg21966044"
+					}, {
+						"name" : "IBM WebSphere eXtreme Scale (1966045) Security Update Information",
+						"url" : "https://www-304.ibm.com/support/docview.wss?uid=swg21966045"
+					}
+				]
+			},
+			"confidentialityImpact" : "C:N",
+			"accessVector" : "AV:N",
+			"accessComplexity" : "AC:L",
+			"authentication" : "Au:N",
+			"integrityImpact" : "I:P",
+			"availabilityImpact" : "A:N",
+			"exploitability" : "E:U",
+			"remediationLevel" : "RL:OF",
+			"reportConfidence" : "RC:C",
+			"cvssBaseScore" : "5",
+			"cvssBaseVector" : "(AC:L/A:N/Au:N/I:P/C:N/AV:N)",
+			"cvssBaseScoreLink" : "http://nvd.nist.gov/cvss.cfm?version=2&name=&vector=(AC:L/A:N/Au:N/I:P/C:N/AV:N)",
+			"cvssTemporalScore" : "3.7",
+			"cvssTemporalVector" : "(RL:OF/RC:C/E:U)",
+			"cvssTemporalScoreLink" : "http://nvd.nist.gov/cvss.cfm?version=2&name=&vector=(AC:L/A:N/Au:N/I:P/C:N/AV:N/RL:OF/RC:C/E:U)",
+			"riskRating" : "LOW",
+			"exploitRating" : "No Known",
+			"cveIds" : {
+				"cveId" : ["CVE-2015-2030"]
+			},
+			"dateOfDisclosure" : "September 07, 2015 01:00:00 AM",
+			"attackingEase" : "Easy",
+			"exploitationConsequence" : "Security Bypass",
+			"exploitationVectors" : {
+				"exploitationVector" : ["General Network Connectivity"]
+			},
+			"copyright" : "\u00a9 Copyright 2016 FireEye, Inc. All rights reserved.",
+			"intelligenceType" : "vulnerability"
+		}
+	}
+}
