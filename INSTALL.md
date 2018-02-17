@@ -1,6 +1,6 @@
  git clone the repository
 
- cp config.examle.cfg config.cfg
+ cp config.example.cfg config.cfg
 
  vi config.cfg and adjust to your needs
 
