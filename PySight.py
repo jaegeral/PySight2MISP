@@ -26,8 +26,6 @@ import urllib.parse
 from urllib3 import ProxyManager
 import urllib3
 
-urllib3.disable_warnings()
-
 import PySight_settings
 from model.pySightReport import pySightReport
 
@@ -37,6 +35,8 @@ try:
     HAVE_PYMISP = True
 except Exception as e:
     HAVE_PYMISP = False
+
+urllib3.disable_warnings()
 
 # read the config file
 
@@ -61,7 +61,7 @@ def get_misp_instance():
             # PyMISP.proxies
             return PyMISP(PySight_settings.misp_url, PySight_settings.misp_key, PySight_settings.misp_verifycert,
                           proxies=None)
-    except:
+    except Exception:
         PySight_settings.logger.error("Unexpected error in MISP init: %s", sys.exc_info())
         return False
 
@@ -89,7 +89,7 @@ def misp_delete_events(a_start, a_end, a_misp_instance):
     except TypeError as e:
         print("TypeError error: %s", e.message)
         return False
-    except:
+    except Exception:
         print("Unexpected error: %s", sys.exc_info())
         return True
 
@@ -210,7 +210,6 @@ def isight_load_data(a_url, a_query, a_headers):
         return_data_cleaned = r.data.replace('\n', '')
         # return_data_cleaned =
 
-
         json_return_data_cleaned = json.loads(return_data_cleaned.decode('utf8'))
         PySight_settings.logger.debug(json_return_data_cleaned)
 
@@ -231,7 +230,7 @@ def isight_load_data(a_url, a_query, a_headers):
             f.close()
 
             return json_return_data_cleaned
-    except:
+    except Exception:
         print("Unexpected error: %s", sys.exc_info())
         return False
 
@@ -267,8 +266,8 @@ def isight_process_alert_content_element(a_json):
         f.write(json.dumps(a_json, sort_keys=True, indent=4, separators=(',', ': ')))
         f.close()
 
-        # create a MISP event
-        has_previous_event = True
+        # create a MISP event FIXME: Not used
+        # has_previous_event = True
 
         PySight_settings.logger.debug("checking for previous events with report ID %s", isight_report_instance.reportId)
         event = misp_check_for_previous_events(this_misp_instance, isight_report_instance)
@@ -417,7 +416,7 @@ def is_map_alert_to_event(p_misp_instance, a_event, a_isight_alert, a_auto_comme
             p_misp_instance.add_internal_text(a_event, a_isight_alert.fuzzyHash, False,
                                               a_auto_comment + "  File fuzzy (ssdeep) hash")
 
-        if a_isight_alert.fileIdentifier and a_isight_alert.fileIdentifier != None:
+        if a_isight_alert.fileIdentifier and a_isight_alert.fileIdentifier is not None:
             desc = ""
             if a_isight_alert.fileIdentifier == "Attacker":
                 desc = "Indicators confirmed to host malicious content, has functioned as a commandand-control (C2) server, and/or otherwise acted as a source of malicious activity."
@@ -444,10 +443,8 @@ def is_map_alert_to_event(p_misp_instance, a_event, a_isight_alert, a_auto_comme
                 if 'Attribute' in added:
                     if 'uuid' in added['Attribute']:
                         attribute_id = added['Attribute']['uuid']
-                if attribute_id != None:
+                if attribute_id is not None:
                     p_misp_instance.tag(attribute_id, "veris:action:malware:variety=\"C2\"")
-
-
 
                 else:
                     PySight_settings.logger.error("Attribute tagging not possible " + network.domain)
@@ -462,7 +459,7 @@ def is_map_alert_to_event(p_misp_instance, a_event, a_isight_alert, a_auto_comme
                 # TODO: make it a config value what to do with C2, PAP X Y Z
                 # p_misp_instance.add_tag(attribute_id, "PAP:WHITE", attribute=True)
 
-        if a_isight_alert.networkIdentifier and a_isight_alert.networkIdentifier != None:
+        if a_isight_alert.networkIdentifier and a_isight_alert.networkIdentifier is not None:
             desc = ""
             if a_isight_alert.networkIdentifier == "Attacker":
                 # TODO: Then something is C2?!
@@ -544,16 +541,16 @@ def is_map_alert_to_event(p_misp_instance, a_event, a_isight_alert, a_auto_comme
         if a_isight_alert.emailLanguage:
             p_misp_instance.add_internal_other(a_event, a_isight_alert.emailLanguage, False,
                                                "E-mail language " + a_auto_comment)
-    except TypeError as e:
+    except TypeError:
         # sys, traceback = error_handling(e,a_string="Type Error")
         import sys
         PySight_settings.logger.error("TypeError error: %s", sys.exc_info[0])
         return False
-    except AttributeError as e:
+    except AttributeError:
         # sys, traceback = error_handling(e,a_string="Attribute Error")
         import sys
         PySight_settings.logger.error("Attribute Error %s", sys.exc_info()[0])
-    except Exception as e:
+    except Exception:
         import sys
         PySight_settings.logger.error("General Error %s", sys.exc_info()[0])
 
@@ -604,7 +601,7 @@ def misp_check_for_previous_events(misp_instance, isight_alert):
     previous_event = event
     # this looks hacky but it to avoid exceptions if there is no ['message within the result']
 
-    if previous_event != '' and previous_event != False and previous_event != None:
+    if previous_event is not '' and previous_event is not False and previous_event is not None:
         PySight_settings.logger.debug("Will append my data to: %s", previous_event)
         event = misp_instance.get(str(previous_event))  # not get_event!
     else:
@@ -617,7 +614,7 @@ def misp_check_for_previous_events(misp_instance, isight_alert):
             try:
                 event = misp_instance.new_event(0, 2, 0, isight_alert.title + " pySightSight " + isight_alert.reportId,
                                                 new_date)
-            except:
+            except Exception:
                 import sys
                 print("Unexpected error:", sys.exc_info()[0])
         else:
@@ -654,9 +651,10 @@ def data_text_search_wildcard(url, public_key, private_key):
 def data_search_report(url, public_key, private_key, a_reportid):
     print("text_search_wildcard Response:")
     # wild card text search
-    params = {
-        'reportID': a_reportid
-    }
+    # FIXME: not used
+    # params = {
+    #    'reportID': a_reportid
+    # }
     text_search_query = '/report/' + a_reportid
     isight_prepare_data_request(url, text_search_query, public_key, private_key)
 
@@ -745,7 +743,7 @@ def data_text_search_filter(url, public_key, private_key):
         }
         text_search_query = '/search/text?' + urllib.urlencode(params)
         return isight_prepare_data_request(url, text_search_query, public_key, private_key)
-    except:
+    except Exception:
         return False
 
 
