@@ -352,43 +352,43 @@ def is_map_alert_to_event(p_misp_instance, new_misp_event, a_isight_alert, a_aut
         # Start Tagging here
         # this Tag migth be custom, that is why it will be created:
         p_misp_instance.new_tag('iSight', exportable=True)  # FIXME: Don't do that for each event.
-        new_misp_event.tag(tag='iSight')
+        new_misp_event.add_tag('iSight')
 
         # TLP change it if you want to change default TLP
-        new_misp_event.tag(tag='tlp:amber')
+        new_misp_event.add_tag('tlp:amber')
 
         # General detected by a security system. So reflect in a tag
-        new_misp_event.tag(tag='veris:discovery_method="Prt - monitoring service"')
+        new_misp_event.add_tag('veris:discovery_method="Prt - monitoring service"')
         # Severity Tag + Threat level of the Event
         if a_isight_alert.riskRating:
             PySight_settings.logger.debug("risk: %s", a_isight_alert.riskRating)
             if a_isight_alert.riskRating == 'High':
-                new_misp_event.tag(tag='csirt_case_classification:criticality-classification="1"')
+                new_misp_event.add_tag('csirt_case_classification:criticality-classification="1"')
                 # upgrade Threat level if set already
                 new_misp_event.threat_level_id = 1
             elif a_isight_alert.alert_severity == 'minr':
-                new_misp_event.tag(tag='csirt_case_classification:criticality-classification="3"')
-                new_misp_event.tag(tag='veris:impact:overall_rating = "Insignificant"')
+                new_misp_event.add_tag('csirt_case_classification:criticality-classification="3"')
+                new_misp_event.add_tag('veris:impact:overall_rating = "Insignificant"')
                 new_misp_event.threat_level_id = 3
             else:
-                new_misp_event.tag(tag='csirt_case_classification:criticality-classification="3"')
-                new_misp_event.tag(tag='veris:impact:overall_rating = "Unknown"')
+                new_misp_event.add_tag('csirt_case_classification:criticality-classification="3"')
+                new_misp_event.add_tag('veris:impact:overall_rating = "Unknown"')
                 new_misp_event.threat_level_id = 4
         else:
             PySight_settings.logger.info("No Event severity found")
 
         if a_isight_alert.ThreatScape:
             if a_isight_alert.ThreatScape == 'Espionage' or a_isight_alert.ThreatScape == 'cyberEspionage':
-                new_misp_event.tag(tag='veris:actor:motive="Espionage"')
+                new_misp_event.add_tag('veris:actor:motive="Espionage"')
             elif a_isight_alert.ThreatScape == 'hacktivism':
-                new_misp_event.tag(tag='veris:actor:external:variety="Activist"')
+                new_misp_event.add_tag('veris:actor:external:variety="Activist"')
             elif a_isight_alert.ThreatScape == 'cyberCrime' or a_isight_alert.ThreatScape == 'Cyber Crime':
-                new_misp_event.tag(tag='veris:actor:external:variety="Organized crime"')
+                new_misp_event.add_tag('veris:actor:external:variety="Organized crime"')
 
         # Add tag if APT is in the title:
         if "APT" in a_isight_alert.title:
-            new_misp_event.tag(tag='APT')
-            new_misp_event.tag(tag='Threat Type="APT"')
+            new_misp_event.add_tag('APT')
+            new_misp_event.add_tag('Threat Type="APT"')
 
         # Url of the original Alert
         if a_isight_alert.reportLink:
@@ -435,7 +435,7 @@ def is_map_alert_to_event(p_misp_instance, new_misp_event, a_isight_alert, a_aut
                 desc = "Indicators confirmed to host malicious content, has functioned as a commandand-control (C2) server, and/or otherwise acted as a source of malicious activity."
                 PySight_settings.logger.debug("Network indicator found")
                 attribute = new_misp_event.add_attribute(type='domain', value=network.domain, comment='{} domain {}'.format(desc, a_auto_comment))
-                attribute.tag('veris:action:malware:variety="C2"')
+                attribute.add_tag('veris:action:malware:variety="C2"')
 
                 # p_misp_instance.add_tag()
                 PySight_settings.logger.error("added " + network.domain)
@@ -486,7 +486,7 @@ def is_map_alert_to_event(p_misp_instance, new_misp_event, a_isight_alert, a_aut
             new_attribute = new_misp_event.add_attribute(type='domain', value=a_isight_alert.domain, comment='{} domain {}'.format(desc, a_auto_comment))
             # TODO: that needs to be reviewed
             # TODO: make it a config value what to do with C2, PAP X Y Z
-            new_attribute.tag('PAP:WHITE')
+            new_attribute.add_tag('PAP:WHITE')
             # TODO: Add custom Tag if that is C2 as soon as https://github.com/MISP/MISP/issues/802 is completed
         if a_isight_alert.ip:
             PySight_settings.logger.debug("IP indicator found")
@@ -496,7 +496,7 @@ def is_map_alert_to_event(p_misp_instance, new_misp_event, a_isight_alert, a_aut
             new_misp_event.add_attribute(type='ip-dst', value=a_isight_alert.ip, comment='{} ip {}'.format(desc, a_auto_comment))
 
         if a_isight_alert.isCommandAndControl:
-            new_misp_event.tag('veris:action:malware:variety="C2"')
+            new_misp_event.add_tag('veris:action:malware:variety="C2"')
 
         if not (a_isight_alert.url is None):
             new_misp_event.add_attribute(type='url', value=a_isight_alert.url, comment='url {}'.format(a_auto_comment))
