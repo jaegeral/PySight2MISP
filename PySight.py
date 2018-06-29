@@ -320,7 +320,7 @@ def error_handling(e, a_string):
     return sys, traceback
 
 
-def is_map_alert_to_event(p_misp_instance, a_event, a_isight_alert, a_auto_comment):
+def is_map_alert_to_event(p_misp_instance, new_misp_event, a_isight_alert, a_auto_comment):
     """
 
     START THE MAPPING here
@@ -345,8 +345,6 @@ def is_map_alert_to_event(p_misp_instance, a_event, a_isight_alert, a_auto_comme
             # if this is not the right type
             PySight_settings.logger.error("Parameter misp instance is not an PyMisp object")
             return False
-
-        new_misp_event = MISPEvent()
 
         PySight_settings.logger.debug("mapping alert %s", a_isight_alert.reportId)
         new_misp_event.add_attribute(type='other', value=a_isight_alert.reportId, comment=a_auto_comment, category='Internal reference')
@@ -590,23 +588,33 @@ def misp_check_for_previous_events(misp_instance, isight_alert):
         event = misp_instance.get(str(previous_event))  # not get_event!
     else:
         PySight_settings.logger.debug("Will create a new event for it")
+        event = MISPEvent()
 
         if isight_alert.publishDate:
             new_date = time.strftime('%Y-%m-%d', time.localtime(float(isight_alert.publishDate)))
             PySight_settings.logger.debug("Date will be %s title: %s ID %s", new_date, isight_alert.title,
                                           isight_alert.reportId)
             try:
-                event = misp_instance.new_event(0, 2, 0, isight_alert.title + " pySightSight " + isight_alert.reportId,
-                                                new_date)
+                event.distribution = 0
+                event.threat_level_id = 2
+                event.analysis = 0
+                event.info = isight_alert.title + " pySightSight " + isight_alert.reportId
+                event.set_date(new_date)
             except Exception:
                 import sys
                 print("Unexpected error:", sys.exc_info()[0])
         else:
-            event = misp_instance.new_event(0, 2, 0, isight_alert.title + " pySightSight " + isight_alert.reportId)
+            event.distribution = 0
+            event.threat_level_id = 2
+            event.analysis = 0
+            event.info = isight_alert.title + " pySightSight " + isight_alert.reportId
 
     if not event:
         PySight_settings.logger.error("Something went really wrong")
-        event = misp_instance.new_event(0, 2, 0, isight_alert.title + " pySightSight " + isight_alert.reportId)
+        event.distribution = 0
+        event.threat_level_id = 2
+        event.analysis = 0
+        event.info = isight_alert.title + " pySightSight " + isight_alert.reportId
     return event
 
 
