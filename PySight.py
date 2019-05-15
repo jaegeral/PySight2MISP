@@ -23,7 +23,6 @@ import threading
 import time
 import urllib.parse
 
-from urllib3 import ProxyManager
 import urllib3
 
 import PySight_settings
@@ -112,13 +111,11 @@ def check_misp_all_result(a_result):
             PySight_settings.logger.debug("found a previous event!")
             previous_event = e['Event']['id']
             return previous_event
-            break
     else:
         for e in a_result['response']:
             PySight_settings.logger.debug("found a previous event!")
             previous_event = e['Event']['id']
             return previous_event
-            break
 
 
 # INIT iSight Stuff
