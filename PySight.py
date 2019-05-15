@@ -246,7 +246,7 @@ def isight_process_alert_content_element(a_json):
 
         # without a MISP instance this does not make sense
         if this_misp_instance is False:
-            raise "no MISP instance found"
+            raise ValueError("no MISP instance found")
 
         threadLimiter.acquire()
 
