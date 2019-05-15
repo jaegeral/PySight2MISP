@@ -241,7 +241,6 @@ def isight_process_alert_content_element(a_json):
     """
 
     try:
-        import json
         # get a misp instance per threat
         this_misp_instance = get_misp_instance()
 
