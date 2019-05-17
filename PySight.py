@@ -241,13 +241,12 @@ def isight_process_alert_content_element(a_json):
     """
 
     try:
-        import json
         # get a misp instance per threat
         this_misp_instance = get_misp_instance()
 
         # without a MISP instance this does not make sense
         if this_misp_instance is False:
-            raise "no MISP instance found"
+            raise ValueError("no MISP instance found")
 
         threadLimiter.acquire()
 
