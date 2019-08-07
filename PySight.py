@@ -6,7 +6,7 @@ Created on Sep 20, 2016
 
 @author: deralexxx
 
-Script to pull iocs from iSight and push it to MISP
+Script to pull iocs from iSight and push them to MISP
 
 Alexander Jaeger
 
@@ -18,37 +18,32 @@ import email.utils
 import hashlib
 import hmac
 import json
+from proxymanager import ProxyManager
 import sys
 import threading
 import time
 import urllib.parse
-
 import urllib3
 
+# read the config file
 import PySight_settings
+
 from model.pySightReport import pySightReport
 
 try:
     from pymisp import PyMISP, MISPEvent, MISPObject
-
     HAVE_PYMISP = True
 except Exception as e:
     HAVE_PYMISP = False
 
 urllib3.disable_warnings()
 
-# read the config file
-
-start_time = time.time()
 threadLimiter = threading.BoundedSemaphore(1)
 
 
 # some helper methods
-
-
 def get_misp_instance():
     """
-
     :return: MISP Instance
     :rtype: PyMISP
     """
@@ -57,9 +52,14 @@ def get_misp_instance():
             PySight_settings.logger.error("Missing dependency, install pymisp (`pip install pymisp`)")
             return False
         else:
-            # PyMISP.proxies
+            # Proxy settings are taken from the config file and converted to a dict
+            misp_proxies = {
+                'http': str(PySight_settings.proxy_address),
+                'https': str(PySight_settings.proxy_address)
+            }
+            # URL of the MISP instance, API key and SSL certificate validation are taken from the config file.
             return PyMISP(PySight_settings.misp_url, PySight_settings.misp_key, PySight_settings.misp_verifycert,
-                          proxies=None)
+                          proxies=misp_proxies)
     except Exception:
         PySight_settings.logger.error("Unexpected error in MISP init: %s", sys.exc_info())
         return False
@@ -67,7 +67,6 @@ def get_misp_instance():
 
 def misp_delete_events(a_start, a_end, a_misp_instance):
     """
-
     :param a_start:
     :type a_start:
     :param a_end:
@@ -118,11 +117,9 @@ def check_misp_all_result(a_result):
             return previous_event
 
 
-# INIT iSight Stuff
-
+# Define the headers for the HTTP requests to the iSight API.
 def get_headers(a_prv, a_pub, a_query):
     """
-
     :param a_prv:
     :type a_prv:
     :param a_pub:
@@ -132,21 +129,25 @@ def get_headers(a_prv, a_pub, a_query):
     :return: headers for iSight search
     :rtype:
     """
-    time_stamp = email.utils.formatdate(localtime=True)
 
-    new_data = a_query + '2.4' + 'application/json' + time_stamp
-    # new_data=''
+    # Prepare the data to calculate the X-Auth-Hash.
+    accept_version = '2.5'
+    output_format = 'application/json'
+    time_stamp = email.utils.formatdate(localtime=True)
+    string_to_hash = a_query + accept_version + output_format + time_stamp
+
     # TODO: that is currently broken! TypeError: string argument without an encoding
-    message = bytes(new_data, 'utf-8')
+    message = bytes(string_to_hash, 'utf-8')
     secret = bytes(a_prv, 'utf-8')
 
-    # hashed = hmac.new(bytearray(a_prv,'utf8'), new_data, hashlib.sha256)
+    # hashed = hmac.new(bytearray(a_prv, 'utf8'), string_to_hash, hashlib.sha256)
     hashed = hmac.new(secret, message, hashlib.sha256)
+
     headers = {
-        'Accept': 'application/json',
-        'Accept-Version': '2.4',
         'X-Auth': a_pub,
         'X-Auth-Hash': hashed.hexdigest(),
+        'Accept': output_format,
+        'Accept-Version': accept_version,
         'Date': time_stamp
     }
     return headers
@@ -154,7 +155,6 @@ def get_headers(a_prv, a_pub, a_query):
 
 def isight_prepare_data_request(a_url, a_query, a_pub_key, a_prv_key):
     """
-
     :param a_url:
     :type a_url:
     :param a_query:
@@ -170,7 +170,7 @@ def isight_prepare_data_request(a_url, a_query, a_pub_key, a_prv_key):
     result = isight_load_data(a_url, a_query, headers)
 
     if not result:
-        PySight_settings.logger.error("Something went wrong while downloading / processing the iSight Request")
+        PySight_settings.logger.error("Something went wrong while downloading / processing the iSight request.")
         return False
     else:
         return result
@@ -178,7 +178,6 @@ def isight_prepare_data_request(a_url, a_query, a_pub_key, a_prv_key):
 
 def isight_load_data(a_url, a_query, a_headers):
     """
-
     :param a_url:
     :type a_url:
     :param a_query:
@@ -190,11 +189,10 @@ def isight_load_data(a_url, a_query, a_headers):
     """
     try:
         PySight_settings.logger.debug("param headers: %s %s", a_headers, a_url)
-        proxy_request = ProxyManager(str(PySight_settings.proxy_adress))
+        proxy_request = ProxyManager(str(PySight_settings.proxy_address))
         url_to_load = PySight_settings.isight_url + a_query
         PySight_settings.logger.debug(url_to_load)
         try:
-
             r = proxy_request.request('GET', a_url + a_query, None, headers=a_headers)
         except urllib.error.HTTPError as e:
             print(e.code)
@@ -234,19 +232,19 @@ def isight_load_data(a_url, a_query, a_headers):
 
 def isight_process_alert_content_element(a_json):
     """
-    create pySightAlert Instance of the json and makes all the mapping
+    Create a pySightAlert instance of the json and make all the mappings
 
     :param a_json:
     :type a_json:
     """
 
     try:
-        # get a misp instance per threat
+        # Get a MISP instance per thread
         this_misp_instance = get_misp_instance()
 
-        # without a MISP instance this does not make sense
+        # Without a MISP instance this does not make sense
         if this_misp_instance is False:
-            raise ValueError("no MISP instance found")
+            raise ValueError("No MISP instance found.")
 
         threadLimiter.acquire()
 
@@ -258,6 +256,9 @@ def isight_process_alert_content_element(a_json):
         # This comment will be added to every attribute for reference
         auto_comment = "pySightMisp " + (isight_report_instance.reportId)
 
+        # Create the "reports" subdirectory for storing iSigh reports, if it doesn't exist already
+        if not os.path.exists("reports"):
+            os.makedirs("reports")
         f = open("reports/" + isight_report_instance.reportId, 'a')
         f.write(json.dumps(a_json, sort_keys=True, indent=4, separators=(',', ': ')))
         f.close()
@@ -271,7 +272,7 @@ def isight_process_alert_content_element(a_json):
         if not event:
             PySight_settings.logger.error("no event! need to create a new one")
         else:
-            # ataching the data to the previously found event
+            # attaching the data to the previously found event
             if not is_map_alert_to_event(this_misp_instance, event, isight_report_instance, auto_comment):
                 PySight_settings.logger.error("Something went wrong with event mapping")
 
@@ -294,7 +295,6 @@ def isight_process_alert_content_element(a_json):
 
 def error_handling(e, a_string):
     """
-
     :param e:
     :type e:
     :param a_string:
@@ -318,7 +318,6 @@ def error_handling(e, a_string):
 
 def is_map_alert_to_event(p_misp_instance, new_misp_event, a_isight_alert, a_auto_comment):
     """
-
     START THE MAPPING here
     general info that should be there in every alert
     internal reference the alert ID
@@ -541,7 +540,6 @@ def misp_check_for_previous_events(misp_instance, isight_alert):
     """
     Default: no previous event detected
 
-
     check for:
         alert_id | ['alert']['id']
 
@@ -657,19 +655,21 @@ def data_text_search_sensitive_reports(url, public_key, private_key):
     isight_prepare_data_request(url, text_search_query, public_key, private_key)
 
 
-def data_search_indicators_last24_h(url, public_key, private_key):
+def data_search_indicators_last_hours(url, public_key, private_key):
     hours = PySight_settings.isight_last_hours
+    # Convert hours to seconds
     since = int(time.time()) - hours * 60 * 60
-    return data_search_indicators_since(private_key, public_key, url, since)
+    return data_search_indicators_since(url, public_key, private_key, since)
 
 
-def data_search_indicators_since(private_key, public_key, url, since):
+def data_search_indicators_since(url, public_key, private_key, since):
     print("text_search_sensitive_reports Response:")
-    # since = int(time.time()) - hours * 60 * 60
 
+    # Limit the returned data to that published since this Epoch datetime and the present time.
     params = {
         'since': since
     }
+    # Retrieve indicators and warning data since the specified date and time.
     text_search_query = '/view/indicators?' + urllib.parse.urlencode(params)
     return isight_prepare_data_request(url, text_search_query, public_key, private_key)
 
@@ -742,6 +742,7 @@ def data_test(url, public_key, private_key):
     isight_prepare_data_request(url, text_search_query, public_key, private_key)
 
 
+# Test the FireEye iSight API by retrieving a sample report
 def test_isight_connection():
     result = data_test(PySight_settings.isight_url, PySight_settings.isight_pub_key, PySight_settings.isight_priv_key)
     if not result:
@@ -750,17 +751,13 @@ def test_isight_connection():
         PySight_settings.logger.debug("else %s", result)
         return True
 
-        # Returns an intelligence report in a specific format and at a specific level of detail.
-
 
 def misp_process_isight_alert(a_result):
     """
-
     :param a_result:
     :type a_result:
     """
 
-    global end
     for i in a_result['message']:
         PySight_settings.logger.debug("  %s current element %s", len(a_result['message']), i)
 
@@ -770,14 +767,13 @@ def misp_process_isight_alert(a_result):
             t.start()
         else:
             # NO THREADING
-
             isight_process_alert_content_element(i)
             PySight_settings.logger.debug("Sleeping for %s seconds", PySight_settings.time_sleep)
             time.sleep(PySight_settings.time_sleep)
-    end = timer()
 
 
 if __name__ == '__main__':
+    # Initialize PyMISP
     misp_instance = get_misp_instance()
 
     # TODO: not yet finished to parse the report!
@@ -785,12 +781,14 @@ if __name__ == '__main__':
 
     # this is to log the time used to run the script
     from timeit import default_timer as timer
-
     start = timer()
-    result = data_search_indicators_last24_h(PySight_settings.isight_url, PySight_settings.isight_pub_key,
-                                             PySight_settings.isight_priv_key)
+
+    # Retrieve FireEye iSight indicators of the last x hours
+    result = data_search_indicators_last_hours(PySight_settings.isight_url, PySight_settings.isight_pub_key,
+                                               PySight_settings.isight_priv_key)
 
     misp_process_isight_alert(result)
+    end = timer()
 
     print("Time taken %s", end - start)
 
