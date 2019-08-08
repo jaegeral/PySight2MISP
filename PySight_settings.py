@@ -39,8 +39,11 @@ misp_url = config.get('MISP', 'misp_url')
 misp_key = config.get('MISP', 'misp_key')
 misp_verifycert = config.getboolean('MISP', 'misp_verifycert')
 
-PROXY_HOST = config.get('proxy', 'host')
-PROXY_PORT = config.get('proxy', 'port')
-PROXY_PROTOCOL = config.get('proxy', 'protocol')
-proxy = config.get('proxy', 'full')
-proxy_address = proxy
+
+USE_PROXY = config.getboolean('proxy', 'use_proxy')
+if USE_PROXY:
+    PROXY_HOST = config.get('proxy', 'host')
+    PROXY_PORT = config.get('proxy', 'port')
+    PROXY_PROTOCOL = config.get('proxy', 'protocol')
+    proxy = config.get('proxy', 'full')
+    proxy_address = proxy

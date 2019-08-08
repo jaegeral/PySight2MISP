@@ -1,7 +1,7 @@
 configparser
 httplib2>=0.8
 nose
-proxy-manager
 pymisp
 simplejson>=3.6.5
 urllib3
+requests
