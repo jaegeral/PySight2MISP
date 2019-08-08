@@ -18,12 +18,14 @@ import email.utils
 import hashlib
 import hmac
 import json
-from proxymanager import ProxyManager
 import sys
 import threading
 import time
 import urllib.parse
 import urllib3
+import requests
+import os
+
 
 # read the config file
 import PySight_settings
@@ -189,18 +191,27 @@ def isight_load_data(a_url, a_query, a_headers):
     """
     try:
         PySight_settings.logger.debug("param headers: %s %s", a_headers, a_url)
-        proxy_request = ProxyManager(str(PySight_settings.proxy_address))
+
+
+        if PySight_settings.USE_PROXY:
+            a_proxy = {PySight_settings.PROXY_HOST: PySight_settings.PROXY_PORT}
+        else:
+            a_proxy = {}
+
         url_to_load = PySight_settings.isight_url + a_query
         PySight_settings.logger.debug(url_to_load)
         try:
-            r = proxy_request.request('GET', a_url + a_query, None, headers=a_headers)
+
+            r = requests.get(a_url + a_query, headers=a_headers,proxies=a_proxy,verify=False)
         except urllib.error.HTTPError as e:
             print(e.code)
             print(e.read())
 
-        PySight_settings.logger.debug("headers %s: ", proxy_request.headers)
+        if r.status_code != 200:
+            PySight_settings.logger.error("Request not successful %s",r.text)
+            return False
 
-        PySight_settings.logger.debug("data %s: ", r.data)
+        PySight_settings.logger.debug("data %s: ", r.text)
 
         return_data_cleaned = r.data.replace('\n', '')
         # return_data_cleaned =
@@ -282,14 +293,14 @@ def isight_process_alert_content_element(a_json):
         # release the limiter
         threadLimiter.release()
 
-    except AttributeError as e:
-        sys, traceback = error_handling(e, a_string="Attribute Error")
+    except AttributeError as e_AttributeError:
+        sys, traceback = error_handling(e_AttributeError, a_string="Attribute Error")
         return False
-    except TypeError as e:
-        sys, traceback = error_handling(e, a_string="Type Error:")
+    except TypeError as e_TypeError:
+        sys, traceback = error_handling(e_TypeError, a_string="Type Error:")
         return False
-    except Exception as e:
-        sys, traceback = error_handling(e, a_string="General Error:")
+    except Exception as e_Exception:
+        sys, traceback = error_handling(e_Exception, a_string="General Error:")
         return False
 
 
@@ -787,7 +798,9 @@ if __name__ == '__main__':
     result = data_search_indicators_last_hours(PySight_settings.isight_url, PySight_settings.isight_pub_key,
                                                PySight_settings.isight_priv_key)
 
-    misp_process_isight_alert(result)
+    if result is False:
+        print("no result")
+    #misp_process_isight_alert(result)
     end = timer()
 
     print("Time taken %s", end - start)
