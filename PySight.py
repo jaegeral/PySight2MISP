@@ -18,13 +18,13 @@ import email.utils
 import hashlib
 import hmac
 import json
+import os
+import requests
 import sys
 import threading
 import time
 import urllib.parse
 import urllib3
-import requests
-import os
 
 
 # read the config file
@@ -213,10 +213,10 @@ def isight_load_data(a_url, a_query, a_headers):
 
         PySight_settings.logger.debug("data %s: ", r.text)
 
-        return_data_cleaned = r.data.replace('\n', '')
+        return_data_cleaned = r.text.replace('\n', '')
         # return_data_cleaned =
 
-        json_return_data_cleaned = json.loads(return_data_cleaned.decode('utf8'))
+        json_return_data_cleaned = json.loads(return_data_cleaned)
         PySight_settings.logger.debug(json_return_data_cleaned)
 
         # print json.dumps(theJson,sort_keys=True,indent = 4, separators = (',', ': '))
@@ -231,6 +231,8 @@ def isight_load_data(a_url, a_query, a_headers):
         else:
             import time
             timestring = time.strftime("%Y%m%d-%H%M%S")
+            if not os.path.exists("debug"):
+                os.makedirs("debug")
             f = open("debug/" + timestring, 'w')
             f.write(json.dumps(json_return_data_cleaned, sort_keys=True, indent=6, separators=(',', ': ')))
             f.close()
@@ -797,10 +799,10 @@ if __name__ == '__main__':
     # Retrieve FireEye iSight indicators of the last x hours
     result = data_search_indicators_last_hours(PySight_settings.isight_url, PySight_settings.isight_pub_key,
                                                PySight_settings.isight_priv_key)
-
     if result is False:
         print("no result")
-    #misp_process_isight_alert(result)
+
+    misp_process_isight_alert(result)
     end = timer()
 
     print("Time taken %s", end - start)
