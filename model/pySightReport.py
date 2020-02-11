@@ -6,54 +6,61 @@
 #
 # The MIT License (MIT) see https://github.com/deralexxx/FireMISP/blob/master/LICENSE
 #
-# Based on the idea of:
+# For documentation of iSight indicator fields, see
+# https://docs.fireeye.com/iSight/index.html#/field_definitions and
+# https://docs.fireeye.com/iSight/index.html#/indicators
 #
 
 import re
 
 from datetime import datetime
-import simplejson as json
 import logging
-
-
-
 #import sys
+import time
 
 #reload(sys)
 #sys.setdefaultencoding('utf-8')
 
 
-#init logger
+# Initialize the logger
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
-
 class pySightReport (object):
     def __init__(self, a_alert_json):
         """
-
         :param a_alert_json:
         :type a_alert_json:
         :rtype: object
         """
+
+        # Initialize all potential fields of the FireEye iSight report
         self.alert = a_alert_json
-        self.alert_reportId = None
-        self.ThreatScape = None  # Cyber Espionage
-        self.audience = None  # Operational
-        self.intelligenceType = None  # threat
+
+        # General information
+        self.reportId = None
+        self.title = None # Cutwail Botnet Distributes Recruitment Mass Mailings
         self.publishDate = None  # 1469544180
+        self.ThreatScape = None  # Cyber Espionage
+        self.riskRating = None # High
+        self.audience = None  # Operational
+        self.intelligenceType = None  # threat / malware / vulnerability / overview
         self.reportLink = None  # https:#api.isightpartners.com/report/16-00011458
         self.webLink = None  # https:#mysight.isightpartners.com/report/full/16-00011458
-        self.emailIdentifier = None  # null
-        self.senderAddress = None  # null
-        self.senderName = None  # null
-        self.sourceDomain = None  # null
-        self.sourceIp = None  # null
-        self.subject = None  # null
-        self.recipient = None  # null
-        self.emailLanguage = None  # null
+
+        # Email-related indicators
+        self.emailIdentifier = None  # Attacker
+        self.senderAddress = None  # lissddzz@gmail.com
+        self.senderName = None  # lissddzz
+        self.sourceDomain = None  # samyongonc.com
+        self.sourceIP = None  # 184.105.137.110
+        self.subject = None  # Administrator Manager position
+        self.recipient = None  # yeh@cwb.gov.tw
+        self.emailLanguage = None  # English
+
+        # File-related indicators
         self.fileName = None  # TW2BBFF500.doc
         self.fileSize = None  # 14860
         self.fuzzyHash = None  # 384:AmHWrWG6qqrx7F7ByIvjgS+S0SBS1n9dwnHJWNy/4yAOksmSfsF17BtX7K4:qrWG6qqV7F7ByIvjgS+S0SBSd9dwnHJw
@@ -61,48 +68,40 @@ class pySightReport (object):
         self.md5 = None  # d27eb3f18ba7f3ae6fa793630882652f
         self.sha1 = None  # 4559ba637772b681dee07127c7c17c776455138e
         self.sha256 = None  # e9c60a120db8a4366734dcecbc15ddd4510ef7929cc7a5d21529180494a35cdc
-        self.description = None  # null
+        self.description = None  # Keylogger
         self.fileType = None  # Rich Text Format data, version 1, ANSI
-        self.packer = None  # null
-        self.userAgent = None  # null
-        self.registry = None  # null
-        self.fileCompilationDateTime = None  # null
-        self.filePath = None  # null
-        self.asn = None  # null
-        self.cidr = None  # null
-        self.domain = None  # null
-        self.domainTimeOfLookup = None  # null
-        self.networkIdentifier = None  # null
-        self.ip = None  # null
-        self.port = None  # null
-        self.protocol = None  # null
-        self.registrantEmail = None  # null
-        self.registrantName = None  # null
-        self.networkType = None  # null
-        self.url = None  # null
-        self.malwareFamily = None  # null
-        self.malwareFamilyId = None  # null
-        self.actor = None  # null
-        self.actorId = None  # null
+        self.packer = None  # Armadillo v1.xx - v2.xx
+        self.registry = None  # HKEY_LOCAL_MACHINE\SOFTWARE\CBSTEST
+        self.fileCompilationDateTime = None  # 1371573858
+        self.filePath = None  # /tmp/adversary/test
+
+        # Network-related indicators
+        self.userAgent = None  # Mozilla
+        self.asn = None  # 26272
+        self.cidr = None  # 1.179.132.0/24
+        self.domain = None  # webmonder.gicp.net
+        self.domainTimeOfLookup = None  # 1371573858
+        self.networkIdentifier = None  # Attacker
+        self.ip = None  # 112.121.182.148
+        self.port = None  # 80
+        self.protocol = None  # TCP
+        self.registrantEmail = None  # sammyguy@gmail.com
+        self.registrantName = None  # Vanella Salvatore
+        self.url = None  # http://www.google.com
+        self.networkType = None  # C&C
+
+        # Context
+        self.malwareFamily = None  # Dyre
+        self.malwareFamilyId = None  # 42bceb96-13c5-4b3f-a435-92ad9b17db27
+        self.actor = None  # actor-oldms
+        self.actorId = None  # c9fc4d46-516b-4fdb-8272-2798d2cdf0bd
         self.observationTime = None  # 1469544180
-        self.riskRating = None #High
-        self.registryHive = None # HKEY_LOCAL_MACHINE
-        self.registryKey = None #Software\Microsoft\Windows\CurrentVersion\RunOnce
-        self.registryValue = None #SilentApp
-        self.title = None
-        self.isCommandAndControl = False
-        self.networks_array = []
 
-
-
-        # important: parse after initiate, otherwise values will be overwritten
+        # After initialization, parse the report and assign all available values
         self._parse_json(a_alert_json)
 
 
     def _parse_json(self, p_alert_json):
-        # Print out the Json given to the method
-        #logger.debug(json.dumps(p_alert_json, sort_keys=False, indent=4, separators=(',', ': ')))
-
         """
         :param p_alert_json:
         :type p_alert_json:
@@ -110,68 +109,43 @@ class pySightReport (object):
         if not p_alert_json:
             raise ValueError('No Json given')
 
-        if "reportId" in p_alert_json:
+        if "reportId" in p_alert_json and p_alert_json['reportId'] is not None:
             self.reportId = str(p_alert_json['reportId'])
-
-        if 'webLink' in p_alert_json:
-            self.webLink = str(p_alert_json['webLink'])
-            #and split it to get the ma_id "alert-url": "https://fireeye.foo.bar/event_stream/events_for_bot?ma_id=12345678",
-            #self.alert_ma_id = (self.alert_url.split("="))[1]
-
-        if 'title' in p_alert_json:
+        if 'title' in p_alert_json and p_alert_json['title'] is not None:
             self.title = str(p_alert_json['title'])
-
-        if 'ThreatScape' in p_alert_json and p_alert_json['ThreatScape'] is not None:
-            self.ThreatScape = str(p_alert_json['ThreatScape'])
-
-        if 'tagSection' in p_alert_json:
-            # TODO: implement that
-            logger.debug("asdds")
-            # check if networks section in tags
-            if 'networks' in p_alert_json['tagSection']:
-
-                for current_network in p_alert_json['tagSection']['networks']['network']:
-
-                    from model import network
-                    current_network_2 = network.iSightNetwork(a_network_json=current_network)
-                    self.networks_array.append(current_network_2)
-
-                    logger.debug("network found! "+current_network_2.domain)
-
-
-        if 'audience' in p_alert_json and p_alert_json['audience'] is not None:
-            self.audience = str(p_alert_json['audience'])
-
-        if 'intelligenceType' in p_alert_json and p_alert_json['intelligenceType'] is not None:
-            self.intelligenceType = str(p_alert_json['intelligenceType'])
-
-        if 'publishDate' in p_alert_json:
-            if isinstance(p_alert_json['publishDate'],float):
-                # e.g. "publishDate" : 1469544180,
-                self.publishDate = str(p_alert_json['publishDate'])
+        if 'publishDate' in p_alert_json and p_alert_json['publishDate'] is not None:
+            if isinstance(p_alert_json['publishDate'],int):
+                self.publishDate = p_alert_json['publishDate']
+            # If publishDate is not in epoch format, i.e. not an integer, we suppose it to be human readable,
+            # e.g. "October 11, 2016 07:20:00 AM", and convert it to integer epoch format
             else:
-                # e.g. "publishDate": "October 11, 2016 07:20:00 AM",
                 logger.debug(p_alert_json['publishDate'])
                 date_format = '%B %d, %Y %H:%M:%S %p'
                 datetime_object = datetime.strptime(p_alert_json['publishDate'], date_format)
-                import time
                 timestamp = time.mktime(datetime_object.timetuple())
-                self.publishDate = str(timestamp)
-
+                self.publishDate = int(timestamp)
+        if 'ThreatScape' in p_alert_json and p_alert_json['ThreatScape'] is not None:
+            self.ThreatScape = str(p_alert_json['ThreatScape'])
+        if 'audience' in p_alert_json and p_alert_json['audience'] is not None:
+            self.audience = str(p_alert_json['audience'])
+        if 'intelligenceType' in p_alert_json and p_alert_json['intelligenceType'] is not None:
+            self.intelligenceType = str(p_alert_json['intelligenceType'])
         if 'reportLink' in p_alert_json and p_alert_json['reportLink'] is not None:
-            self.reportLink = str(p_alert_json['reportLink'])  # TYPE of APPLIANCE
-
+            self.reportLink = str(p_alert_json['reportLink'])
+        if 'webLink' in p_alert_json and p_alert_json['webLink'] is not None:
+            self.webLink = str(p_alert_json['webLink'])
+            #and split it to get the ma_id "alert-url": "https://fireeye.foo.bar/event_stream/events_for_bot?ma_id=12345678",
+            #self.alert_ma_id = (self.alert_url.split("="))[1]
         if 'emailIdentifier' in p_alert_json and p_alert_json['emailIdentifier'] is not None:
             self.emailIdentifier = str(p_alert_json['emailIdentifier'])
-
         if 'senderAddress' in p_alert_json and p_alert_json['senderAddress'] is not None:
             self.senderAddress = str(p_alert_json['senderAddress'])
         if 'senderName' in p_alert_json and p_alert_json['senderName'] is not None:
             self.senderName = str(p_alert_json['senderName'])
         if 'sourceDomain' in p_alert_json and p_alert_json['sourceDomain'] is not None:
             self.sourceDomain = str(p_alert_json['sourceDomain'])
-        if 'sourceIp' in p_alert_json and p_alert_json['sourceIp'] is not None:
-            self.sourceIp = str(p_alert_json['sourceIp'])
+        if 'sourceIP' in p_alert_json and p_alert_json['sourceIP'] is not None:
+            self.sourceIP = str(p_alert_json['sourceIP'])
         if 'subject' in p_alert_json and p_alert_json['subject'] is not None:
             self.subject = str(p_alert_json['subject'])
         if 'recipient' in p_alert_json and p_alert_json['recipient'] is not None:
@@ -186,78 +160,88 @@ class pySightReport (object):
             self.fuzzyHash = str(p_alert_json['fuzzyHash'])
         if 'fileIdentifier' in p_alert_json and p_alert_json['fileIdentifier'] is not None:
             self.fileIdentifier = str(p_alert_json['fileIdentifier'])
-        if 'md5' in p_alert_json and p_alert_json['md5']is not None:
+        if 'md5' in p_alert_json and p_alert_json['md5'] is not None:
             self.md5 = str(p_alert_json['md5'])
-        if 'sha1' in p_alert_json and p_alert_json['sha1']is not None:
+        if 'sha1' in p_alert_json and p_alert_json['sha1'] is not None:
             self.sha1 = str(p_alert_json['sha1'])
-
-        if 'sha256' in p_alert_json and p_alert_json['sha256']is not None:
+        if 'sha256' in p_alert_json and p_alert_json['sha256'] is not None:
             self.sha256 = str(p_alert_json['sha256'])
-
-        if 'description' in p_alert_json and p_alert_json['description']is not None:
+        if 'description' in p_alert_json and p_alert_json['description'] is not None:
             self.description = str(p_alert_json['description'])
-
-        if 'fileType' in p_alert_json and p_alert_json['fileType']is not None:
+        if 'fileType' in p_alert_json and p_alert_json['fileType'] is not None:
             self.fileType = str(p_alert_json['fileType'])
-
-        if 'packer' in p_alert_json and p_alert_json['packer']is not None:
+        if 'packer' in p_alert_json and p_alert_json['packer'] is not None:
             self.packer = str(p_alert_json['packer'])
-
-        if 'userAgent' in p_alert_json and p_alert_json['userAgent']is not None:
-            self.userAgent = str(p_alert_json['userAgent'])
-
-        if 'registry' in p_alert_json and p_alert_json['registry']is not None:
+        if 'registry' in p_alert_json and p_alert_json['registry'] is not None:
             self.registry = str(p_alert_json['registry'])
-
-        if 'fileCompilationDateTime' in p_alert_json and p_alert_json['fileCompilationDateTime']is not None:
-            self.fileCompilationDateTime = str(p_alert_json['fileCompilationDateTime'])
-
-        if 'filePath' in p_alert_json and p_alert_json['filePath']is not None:
+        if 'fileCompilationDateTime' in p_alert_json and p_alert_json['fileCompilationDateTime'] is not None:
+            if isinstance(p_alert_json['fileCompilationDateTime'],int):
+                self.fileCompilationDateTime = p_alert_json['fileCompilationDateTime']
+            # If fileCompilationDateTime is not in epoch format, i.e. not an integer, we suppose it to be human readable,
+            # e.g. "October 11, 2016 07:20:00 AM", and convert it to integer epoch format
+            else:
+                logger.debug(p_alert_json['fileCompilationDateTime'])
+                date_format = '%B %d, %Y %H:%M:%S %p'
+                datetime_object = datetime.strptime(p_alert_json['fileCompilationDateTime'], date_format)
+                timestamp = time.mktime(datetime_object.timetuple())
+                self.fileCompilationDateTime = int(timestamp)
+        if 'filePath' in p_alert_json and p_alert_json['filePath'] is not None:
             self.filePath = str(p_alert_json['filePath'])
-        if 'asn' in p_alert_json and p_alert_json['asn']is not None:
+        if 'userAgent' in p_alert_json and p_alert_json['userAgent'] is not None:
+            self.userAgent = str(p_alert_json['userAgent'])
+        if 'asn' in p_alert_json and p_alert_json['asn'] is not None:
             self.asn = str(p_alert_json['asn'])
-        if 'cidr' in p_alert_json and p_alert_json['cidr']is not None:
+        if 'cidr' in p_alert_json and p_alert_json['cidr'] is not None:
             self.cidr = str(p_alert_json['cidr'])
-        if 'domain' in p_alert_json and p_alert_json['domain']is not None:
+        if 'domain' in p_alert_json and p_alert_json['domain'] is not None:
             self.domain = str(p_alert_json['domain'])
-        if 'domainTimeOfLookup' in p_alert_json and p_alert_json['domainTimeOfLookup']is not None:
-            self.domainTimeOfLookup = str(p_alert_json['domainTimeOfLookup'])
-        if 'networkIdentifier' in p_alert_json and p_alert_json['networkIdentifier']is not None:
+        if 'domainTimeOfLookup' in p_alert_json and p_alert_json['domainTimeOfLookup'] is not None:
+            if isinstance(p_alert_json['domainTimeOfLookup'],int):
+                self.domainTimeOfLookup = p_alert_json['domainTimeOfLookup']
+            # If domainTimeOfLookup is not in epoch format, i.e. not an integer, we suppose it to be human readable,
+            # e.g. "October 11, 2016 07:20:00 AM", and convert it to integer epoch format
+            else:
+                logger.debug(p_alert_json['domainTimeOfLookup'])
+                date_format = '%B %d, %Y %H:%M:%S %p'
+                datetime_object = datetime.strptime(p_alert_json['domainTimeOfLookup'], date_format)
+                timestamp = time.mktime(datetime_object.timetuple())
+                self.domainTimeOfLookup = int(timestamp)
+        if 'networkIdentifier' in p_alert_json and p_alert_json['networkIdentifier'] is not None:
             self.networkIdentifier = str(p_alert_json['networkIdentifier'])
-        if 'ip' in p_alert_json and p_alert_json['ip']is not None:
+        if 'ip' in p_alert_json and p_alert_json['ip'] is not None:
             self.ip = str(p_alert_json['ip'])
-        if 'port' in p_alert_json:
+        if 'port' in p_alert_json and p_alert_json['port'] is not None:
             self.port = str(p_alert_json['port'])
-        if 'protocol' in p_alert_json:
+        if 'protocol' in p_alert_json and p_alert_json['protocol'] is not None:
             self.protocol = str(p_alert_json['protocol'])
-        if 'registrantEmail' in p_alert_json:
+        if 'registrantEmail' in p_alert_json and p_alert_json['registrantEmail'] is not None:
             self.registrantEmail = str(p_alert_json['registrantEmail'])
-        if 'registrantName' in p_alert_json:
+        if 'registrantName' in p_alert_json and p_alert_json['registrantName'] is not None:
             self.registrantName = str(p_alert_json['registrantName'])
-        if 'networkType' in p_alert_json:
-            self.networkType = str(p_alert_json['networkType'])
         if 'url' in p_alert_json and p_alert_json['url'] is not None:
             self.url = str(p_alert_json['url'])
-        if 'malwareFamily' in p_alert_json:
+        if 'networkType' in p_alert_json and p_alert_json['networkType'] is not None:
+            self.networkType = str(p_alert_json['networkType'])
+        if 'malwareFamily' in p_alert_json and p_alert_json['malwareFamily'] is not None:
             self.malwareFamily = str(p_alert_json['malwareFamily'])
-        if 'malwareFamilyId' in p_alert_json:
+        if 'malwareFamilyId' in p_alert_json and p_alert_json['malwareFamilyId'] is not None:
             self.malwareFamilyId = str(p_alert_json['malwareFamilyId'])
         if 'actor' in p_alert_json and p_alert_json['actor'] is not None:
             self.actor = str(p_alert_json['actor'])
-        if 'actorId' in p_alert_json:
+        if 'actorId' in p_alert_json and p_alert_json['actorId'] is not None:
             self.actorId = str(p_alert_json['actorId'])
-        if 'observationTime' in p_alert_json:
-            self.observationTime = str(p_alert_json['observationTime'])
-        if 'riskRating' in p_alert_json:
+        if 'observationTime' in p_alert_json and p_alert_json['observationTime'] is not None:
+            if isinstance(p_alert_json['observationTime'],int):
+                self.observationTime = p_alert_json['observationTime']
+            # If observationTime is not in epoch format, i.e. not an integer, we suppose it to be human readable,
+            # e.g. "October 11, 2016 07:20:00 AM", and convert it to integer epoch format
+            else:
+                logger.debug(p_alert_json['observationTime'])
+                date_format = '%B %d, %Y %H:%M:%S %p'
+                datetime_object = datetime.strptime(p_alert_json['observationTime'], date_format)
+                timestamp = time.mktime(datetime_object.timetuple())
+                self.observationTime = int(timestamp)
+        if 'riskRating' in p_alert_json and p_alert_json['riskRating'] is not None:
             self.riskRating = str(p_alert_json['riskRating'])
-        if 'registryHive' in p_alert_json:
-            self.registryHive = str(p_alert_json['registryHive'])
-        if 'registryKey' in p_alert_json:
-            self.registryKey = str(p_alert_json['registryKey'])
-        if 'registryValue' in p_alert_json:
-            self.registryValue = str(p_alert_json['registryValue'])
-        if 'title' in p_alert_json:
-            self.title = str(p_alert_json['title'])
 
         logger.debug("Parsing finished")
-

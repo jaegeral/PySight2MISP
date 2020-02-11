@@ -28,6 +28,7 @@ logger.addHandler(fileHandler)
 config.read('config.cfg')
 
 use_threading = config.getboolean('general', 'use_threading')
+number_threads = config.getint('general', 'number_threads')
 time_sleep = config.getint('general', 'time_sleep')
 
 isight_url = config.get('isight', 'isight_url')
@@ -40,8 +41,9 @@ misp_key = config.get('MISP', 'misp_key')
 misp_verifycert = config.getboolean('MISP', 'misp_verifycert')
 
 
-USE_PROXY = config.getboolean('proxy', 'use_proxy')
-if USE_PROXY:
+USE_ISIGHT_PROXY = config.getboolean('proxy', 'use_isight_proxy')
+USE_MISP_PROXY = config.getboolean('proxy', 'use_misp_proxy')
+if USE_ISIGHT_PROXY or USE_MISP_PROXY:
     PROXY_HOST = config.get('proxy', 'host')
     PROXY_PORT = config.get('proxy', 'port')
     PROXY_PROTOCOL = config.get('proxy', 'protocol')

@@ -1,3 +1,12 @@
+PySight 1.1 (2019-09-16)
+===========================
+- Add configuration option for number of threads.
+- Intercept response code 204 from FireEye iSight API.
+- Differentiate whether a proxy shall be used for the FireEye iSight API, for MISP, or for both.
+- Proper handling of publishDate data in pySightReport.py.
+- Replace PyMISP with ExpandedPyMISP.
+- Expand mapping of iSight fields to MISP objects, attributes and tags.
+
 PySight 1.0.10 (2019-08-07)
 ===========================
 

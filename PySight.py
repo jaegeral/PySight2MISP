@@ -11,14 +11,15 @@ Script to pull iocs from iSight and push them to MISP
 Alexander Jaeger
 
 See CHANGELOG.md for history
-
 """
 
+import datetime
 import email.utils
 import hashlib
 import hmac
 import json
 import os
+from pymisp import ExpandedPyMISP, MISPEvent, MISPObject
 import requests
 import sys
 import threading
@@ -26,42 +27,35 @@ import time
 import urllib.parse
 import urllib3
 
-
-# read the config file
+# Read the config file.
 import PySight_settings
 
+# Import our own iSight report model.
 from model.pySightReport import pySightReport
 
-try:
-    from pymisp import PyMISP, MISPEvent, MISPObject
-    HAVE_PYMISP = True
-except Exception as e:
-    HAVE_PYMISP = False
-
+# Disable urllib3 warnings. Why?
 urllib3.disable_warnings()
 
-threadLimiter = threading.BoundedSemaphore(1)
 
-
-# some helper methods
+# Generate a PyMISP instance.
 def get_misp_instance():
     """
     :return: MISP Instance
     :rtype: PyMISP
     """
+    # Proxy settings are taken from the config file and converted to a dict.
+    if PySight_settings.USE_MISP_PROXY:
+        misp_proxies = {
+            'http': str(PySight_settings.proxy_address),
+            'https': str(PySight_settings.proxy_address)
+        }
+    else:
+        misp_proxies = {}
+
     try:
-        if not HAVE_PYMISP:
-            PySight_settings.logger.error("Missing dependency, install pymisp (`pip install pymisp`)")
-            return False
-        else:
-            # Proxy settings are taken from the config file and converted to a dict
-            misp_proxies = {
-                'http': str(PySight_settings.proxy_address),
-                'https': str(PySight_settings.proxy_address)
-            }
-            # URL of the MISP instance, API key and SSL certificate validation are taken from the config file.
-            return PyMISP(PySight_settings.misp_url, PySight_settings.misp_key, PySight_settings.misp_verifycert,
-                          proxies=misp_proxies)
+        # URL of the MISP instance, API key and SSL certificate validation are taken from the config file.
+        return ExpandedPyMISP(PySight_settings.misp_url, PySight_settings.misp_key, PySight_settings.misp_verifycert,
+                              proxies=misp_proxies)
     except Exception:
         PySight_settings.logger.error("Unexpected error in MISP init: %s", sys.exc_info())
         return False
@@ -94,7 +88,7 @@ def misp_delete_events(a_start, a_end, a_misp_instance):
         return True
 
 
-def check_misp_all_result(a_result):
+def check_misp_all_results(a_result):
     """
     :param a_result:
     :type a_result:
@@ -104,31 +98,30 @@ def check_misp_all_result(a_result):
     # PySight_settings.logger.debug("Checking %s if it contains previous events", a_result)
     if 'message' in a_result:
         if a_result['message'] == 'No matches.':
-            PySight_settings.logger.error("No previous event found")
+            PySight_settings.logger.error("No existing event found.")
             # has really no event
             return False
-    elif 'Event' in a_result:
-        for e in a_result['response']:
-            PySight_settings.logger.debug("found a previous event!")
-            previous_event = e['Event']['id']
+    elif 'Event' in a_result[0]:
+            PySight_settings.logger.debug("Found an existing event.")
+            previous_event = a_result[0]['Event']['id']
             return previous_event
     else:
         for e in a_result['response']:
-            PySight_settings.logger.debug("found a previous event!")
+            PySight_settings.logger.debug("Found an existing event.")
             previous_event = e['Event']['id']
             return previous_event
 
 
-# Define the headers for the HTTP requests to the iSight API.
-def get_headers(a_prv, a_pub, a_query):
+# Define the header for the HTTP requests to the iSight API.
+def set_header(a_prv_key, a_pub_key, a_query):
     """
-    :param a_prv:
-    :type a_prv:
-    :param a_pub:
-    :type a_pub:
+    :param a_prv_key:
+    :type a_prv_key:
+    :param a_pub_key:
+    :type a_pub_key:
     :param a_query:
     :type a_query:
-    :return: headers for iSight search
+    :return: Header for iSight search
     :rtype:
     """
 
@@ -138,21 +131,21 @@ def get_headers(a_prv, a_pub, a_query):
     time_stamp = email.utils.formatdate(localtime=True)
     string_to_hash = a_query + accept_version + output_format + time_stamp
 
-    # TODO: that is currently broken! TypeError: string argument without an encoding
+    # Convert the authentication information from UTF-8 encoding to a bytes object
     message = bytes(string_to_hash, 'utf-8')
-    secret = bytes(a_prv, 'utf-8')
+    secret = bytes(a_prv_key, 'utf-8')
 
-    # hashed = hmac.new(bytearray(a_prv, 'utf8'), string_to_hash, hashlib.sha256)
+    # Hash the authentication information
     hashed = hmac.new(secret, message, hashlib.sha256)
 
-    headers = {
-        'X-Auth': a_pub,
+    header = {
+        'X-Auth': a_pub_key,
         'X-Auth-Hash': hashed.hexdigest(),
         'Accept': output_format,
         'Accept-Version': accept_version,
         'Date': time_stamp
     }
-    return headers
+    return header
 
 
 def isight_prepare_data_request(a_url, a_query, a_pub_key, a_prv_key):
@@ -168,8 +161,8 @@ def isight_prepare_data_request(a_url, a_query, a_pub_key, a_prv_key):
     :return:
     :rtype:
     """
-    headers = get_headers(a_prv_key, a_pub_key, a_query)
-    result = isight_load_data(a_url, a_query, headers)
+    header = set_header(a_prv_key, a_pub_key, a_query)
+    result = isight_load_data(a_url, a_query, header)
 
     if not result:
         PySight_settings.logger.error("Something went wrong while downloading / processing the iSight request.")
@@ -178,72 +171,326 @@ def isight_prepare_data_request(a_url, a_query, a_pub_key, a_prv_key):
         return result
 
 
-def isight_load_data(a_url, a_query, a_headers):
+def isight_load_data(a_url, a_query, a_header):
     """
     :param a_url:
     :type a_url:
     :param a_query:
     :type a_query:
-    :param a_headers:
-    :type a_headers:
+    :param a_header:
+    :type a_header:
     :return:
     :rtype:
     """
+
+    # This is the URL for the iSight API query
+    url_to_load = a_url + a_query
+
+    PySight_settings.logger.debug("URL: %s", url_to_load)
+    PySight_settings.logger.debug("Header: %s ", a_header)
+
+    # Set the proxy if specified
+    if PySight_settings.USE_ISIGHT_PROXY:
+        isight_proxies = {
+            'http': PySight_settings.proxy_address,
+            'https': PySight_settings.proxy_address
+        }
+    else:
+        isight_proxies = {}
+
     try:
-        PySight_settings.logger.debug("param headers: %s %s", a_headers, a_url)
-
-
-        if PySight_settings.USE_PROXY:
-            a_proxy = {PySight_settings.PROXY_HOST: PySight_settings.PROXY_PORT}
-        else:
-            a_proxy = {}
-
-        url_to_load = PySight_settings.isight_url + a_query
-        PySight_settings.logger.debug(url_to_load)
-        try:
-
-            r = requests.get(a_url + a_query, headers=a_headers,proxies=a_proxy,verify=False)
-        except urllib.error.HTTPError as e:
-            print(e.code)
-            print(e.read())
-
-        if r.status_code != 200:
-            PySight_settings.logger.error("Request not successful %s",r.text)
-            return False
-
-        PySight_settings.logger.debug("data %s: ", r.text)
-
-        return_data_cleaned = r.text.replace('\n', '')
-        # return_data_cleaned =
-
-        json_return_data_cleaned = json.loads(return_data_cleaned)
-        PySight_settings.logger.debug(json_return_data_cleaned)
-
-        # print json.dumps(theJson,sort_keys=True,indent = 4, separators = (',', ': '))
-        PySight_settings.logger.debug("Number of iocs: %s answer is: %s", len(json_return_data_cleaned['message']),
-                                      json_return_data_cleaned)
-
-        if not json_return_data_cleaned['success']:
-            PySight_settings.logger.error("Error with iSight connection %s",
-                                          json_return_data_cleaned['message']['description'])
-            PySight_settings.logger.error(json_return_data_cleaned)
-            return False
-        else:
-            import time
-            timestring = time.strftime("%Y%m%d-%H%M%S")
-            if not os.path.exists("debug"):
-                os.makedirs("debug")
-            f = open("debug/" + timestring, 'w')
-            f.write(json.dumps(json_return_data_cleaned, sort_keys=True, indent=6, separators=(',', ': ')))
-            f.close()
-
-            return json_return_data_cleaned
-    except Exception:
-        print("Unexpected error: %s", sys.exc_info())
+        r = requests.get(url_to_load, headers=a_header, proxies=isight_proxies, verify=False)
+    except urllib.error.HTTPError as e:
+        print(e.code)
+        print(e.read())
+    except requests.exceptions.ChunkedEncodingError as e:
+        print('Error when connecting to the FireEye iSight API: ', e)
         return False
 
+    if r.status_code == 204:
+        PySight_settings.logger.error("No result found for search.")
+        return False
+    elif r.status_code != 200:
+        PySight_settings.logger.error("Request not successful %s", r.text)
+        return False
 
-def isight_process_alert_content_element(a_json):
+    return_data_cleaned = r.text.replace('\n', '')
+
+    json_return_data_cleaned = json.loads(return_data_cleaned)
+    PySight_settings.logger.debug("Number of IOCs returned: %s", len(json_return_data_cleaned['message']))
+
+    if not json_return_data_cleaned['success']:
+        PySight_settings.logger.error("Error with iSight connection %s",
+                                      json_return_data_cleaned['message']['description'])
+        PySight_settings.logger.error(json_return_data_cleaned)
+        return False
+    else:
+        # For debugging purposes, write the returned IOCs to a file
+        import time
+        timestring = time.strftime("%Y%m%d-%H%M%S")
+        if not os.path.exists("debug"):
+            os.makedirs("debug")
+        f = open("debug/" + timestring, 'w')
+        f.write(json.dumps(json_return_data_cleaned, sort_keys=True, indent=6, separators=(',', ': ')))
+        f.close()
+
+        return json_return_data_cleaned
+
+
+def create_misp_event(misp_instance, isight_report_instance):
+    # No MISP event for this iSight report ID exists yet.
+    # Alas, create a new MISP event.
+
+    # Convert the publication date of the iSight report into a datetime object.
+    if isight_report_instance.publishDate:
+        date = datetime.datetime.fromtimestamp(isight_report_instance.publishDate)
+    else:
+        # If iSight doesn't provide a date, use today's date.
+        date = datetime.utcnow()
+
+    # Create a MISP event from the FireEye iSight report with the following parameters.
+    event = MISPEvent()
+    event.distribution = 1 # This community only
+    if isight_report_instance.riskRating == 'CRITICAL' or isight_report_instance.riskRating == 'Critical':
+        event.threat_level_id = 1 # High
+    elif isight_report_instance.riskRating == 'HIGH' or isight_report_instance.riskRating == 'High':
+        event.threat_level_id = 1 # High
+    elif isight_report_instance.riskRating == 'MEDIUM' or isight_report_instance.riskRating == 'Medium':
+        event.threat_level_id = 2 # Medium
+    elif isight_report_instance.riskRating == 'LOW' or isight_report_instance.riskRating == 'Low':
+        event.threat_level_id = 3 # Low
+    else:
+        event.threat_level_id = 4 # Unknown
+    event.analysis = 2 # Completed
+    event.info = "iSIGHT: " + isight_report_instance.title
+    event.date = date
+
+    # Push the event to the MISP server.
+    my_event = misp_instance.add_event(event, pythonify=True)
+
+    # Add default tags to the event.
+    misp_instance.tag(my_event, 'basf:classification="internal"')
+    #misp_instance.tag(my_event, 'basf:source="iSight"')
+    misp_instance.tag(my_event, 'tlp:amber')
+
+    # Use some iSight ThreatScapes for event tagging.
+    if isight_report_instance.ThreatScape == 'Cyber Espionage':
+        misp_instance.tag(my_event, 'veris:actor:motive="Espionage"')
+    elif isight_report_instance.ThreatScape == 'Hacktivism':
+        misp_instance.tag(my_event, 'veris:actor:external:variety="Activist"')
+    elif isight_report_instance.ThreatScape == 'Critical Infrastructure':
+        misp_instance.tag(my_event, 'basf:technology="OT"')
+    elif isight_report_instance.ThreatScape == 'Cyber Crime':
+        misp_instance.tag(my_event, 'veris:actor:external:variety="Organized crime"')
+
+    # Add the iSight report ID and web link as attributes.
+    if isight_report_instance.reportId:
+        misp_instance.add_attribute(my_event, {'category': 'External analysis', 'type': 'text', 'to_ids': False,
+                                               'value': isight_report_instance.reportId}, pythonify=True)
+    if isight_report_instance.webLink:
+        misp_instance.add_attribute(my_event, {'category': 'External analysis', 'type': 'link', 'to_ids': False,
+                                               'value': isight_report_instance.webLink}, pythonify=True)
+
+    # Put the ThreatScape into an Attribution attribute, but disable correlation.
+    if isight_report_instance.ThreatScape:
+        misp_instance.add_attribute(my_event, {'category': 'Attribution', 'type': 'text', 'to_ids': False,
+                                               'value': isight_report_instance.ThreatScape, 'disable_correlation': True},
+                                    pythonify=True)
+
+    # Add specific attributes from this iSight report.
+    update_misp_event(misp_instance, my_event, isight_report_instance)
+
+
+def update_misp_event(misp_instance, event, isight_alert):
+    # Update attributes based on the iSight report.
+    #
+    # Ideas of Alex not implemented:
+    # Use expanded networkIdentifier as a comment.
+    # Create attributes and use object relationships for iSight fields that have no corresponding MISP object attribute.
+    #
+    # Unused iSight fields: observationTime
+
+    PySight_settings.logger.debug("Updating the event %s.", event)
+
+    # Verify that misp_instance is of the correct type
+    if not isinstance(misp_instance, ExpandedPyMISP):
+        PySight_settings.logger.error("Parameter misp_instance is not a PyMISP object")
+        return False
+
+    # Determine whether the to_ids flag shall be set.
+    if isight_alert.emailIdentifier == 'Attacker' or isight_alert.emailIdentifier == 'Compromised':
+        email_ids = True
+    else:
+        email_ids = False
+    if isight_alert.fileIdentifier == 'Attacker' or isight_alert.fileIdentifier == 'Compromised':
+        file_ids = True
+    elif isight_alert.intelligenceType == 'malware':
+        file_ids = True
+    else:
+        file_ids = False
+    if isight_alert.networkIdentifier == 'Attacker' or isight_alert.networkIdentifier == 'Compromised':
+        network_ids = True
+    else:
+        network_ids = False
+
+    # If the alert contains email indicators, create an email object.
+    if isight_alert.emailIdentifier:
+        # If emailLanguage is provided, use it as a comment.
+        if isight_alert.emailLanguage:
+            email_comment = 'Email language: ' + isight_alert.emailLanguage
+        else:
+            email_comment = ''
+        email_object = MISPObject(name='email', comment=email_comment)
+        if isight_alert.senderAddress:
+            email_object.add_attribute('from', value=isight_alert.senderAddress, to_ids=email_ids)
+        if isight_alert.senderName:
+            email_object.add_attribute('from-display-name', value=isight_alert.senderName, to_ids=False)
+        if isight_alert.sourceIP:
+            email_object.add_attribute('ip-src', value=isight_alert.sourceIP, to_ids=email_ids)
+        if isight_alert.subject:
+            email_object.add_attribute('subject', value=isight_alert.subject, to_ids=False)
+        if isight_alert.recipient:
+            email_object.add_attribute('to', value=isight_alert.recipient, to_ids=False)
+        if isight_alert.senderDomain:
+            domain_attribute = event.add_attribute(category='Network activity', type='domain', value=isight_alert.senderDomain, to_ids=False)
+            email_object.add_reference(domain_attribute.uuid, 'derived-from', comment='Email source domain')
+        # Finally, add the object to the event.
+        event.add_object(email_object)
+
+    # If the report contains an MD5 hash, create a file object.
+    if isight_alert.md5:
+        # If a description is given, use it as a comment.
+        if isight_alert.description:
+            file_comment = isight_alert.description
+        else:
+            file_comment = ''
+        file_object = MISPObject(name='file', comment=file_comment)
+        file_object.add_attribute('md5', value=isight_alert.md5, to_ids=file_ids)
+        if isight_alert.sha1:
+            file_object.add_attribute('sha1', value=isight_alert.sha1, to_ids=file_ids)
+        if isight_alert.sha256:
+            file_object.add_attribute('sha256', value=isight_alert.sha256, to_ids=file_ids)
+        if isight_alert.fileName and isight_alert.fileName is not 'UNAVAILABLE':
+            # Don't use filenames for detection.
+            file_object.add_attribute('filename', value=isight_alert.fileName, to_ids=False)
+        if isight_alert.fileSize:
+            # Don't use file size for detection.
+            file_object.add_attribute('size-in-bytes', value=isight_alert.fileSize, to_ids=False)
+        if isight_alert.fuzzyHash:
+            file_object.add_attribute('ssdeep', value=isight_alert.fuzzyHash, to_ids=file_ids)
+        if isight_alert.fileType:
+            # Don't use file type for detection.
+            file_object.add_attribute('text', value=isight_alert.fileType, to_ids=False)
+        if isight_alert.fileCompilationDateTime:
+            # Convert epoch format to ISO86011 UTC format.
+            compile_date = datetime.datetime.fromtimestamp(isight_alert.fileCompilationDateTime)
+            file_object.add_attribute('compilation-timestamp', value=str(compile_date), to_ids=False)
+        if isight_alert.filePath:
+            file_object.add_attribute('path', value=isight_alert.filePath, to_ids=False)
+        event.add_object(file_object)
+
+    # If the report contains a user agent string, create a user-agent attribute.
+    if isight_alert.userAgent:
+        event.add_attribute(category='Network activity', type='user-agent', value=isight_alert.userAgent, to_ids=network_ids)
+
+    # If the report contains an ASN, create an AS attribute.
+    if isight_alert.asn:
+        # Don't use the ASN for detection.
+        event.add_attribute(category='Network activity', type='AS', value=isight_alert.asn, to_ids=False)
+
+    # Set the default comment for network objects. Ideally, this would be networkType, but unfortunately the provided
+    # values are too generic. Instead, we use malwareFamily.
+    if isight_alert.malwareFamily:
+        net_comment=isight_alert.malwareFamily
+    else:
+        net_comment=''
+
+    # If the report contains a domain, create a hostname attribute (because iSight domain names are in fact hostnames).
+    if isight_alert.domain:
+        event.add_attribute(category='Network activity', type='hostname', value=isight_alert.domain, to_ids=network_ids,
+                            comment=net_comment)
+        if isight_alert.networkType == 'C&C':
+            # Add veris tag to attribute.
+            event.add_attribute_tag('veris:action:malware:variety="C2"', isight_alert.domain)
+            # If the above tagging command doesn't work try:
+            # my_attribute = event.add_attribute(...)
+            # my_attribute.add_tag('tag')
+
+    # If the report contains an IP address, create an ip-src or ip-dst attribute.
+    # TODO: Is there a better way to determine whether it's a source or destination IP address?
+    if isight_alert.ip:
+        if isight_alert.networkIdentifier == 'Attacker':
+            # Might be source or destination, but likelihood of source is higher.
+            ip_type = 'ip-src'
+            if isight_alert.networkType == 'C&C':
+                ip_type = 'ip-dst'
+        elif isight_alert.networkIdentifier == 'Compromised':
+            # Might be source or destination, but likelihood of destination is higher.
+            ip_type = 'ip-dst'
+        elif isight_alert.networkIdentifier == 'Related':
+            # Might be source or destination, but likelihood of source is higher.
+            ip_type = 'ip-src'
+        elif isight_alert.networkIdentifier == 'Victim':
+            # Might be source or destination, but likelihood of destination is higher.
+            ip_type = 'ip-dst'
+        else:
+            # Might be source or destination, but likelihood of source is higher.
+            ip_type = 'ip-src'
+        if isight_alert.port:
+            type_combo = ip_type + '|port'
+            ip_port = isight_alert.ip + '|' + isight_alert.port
+            new_attr = event.add_attribute(category='Network activity', type=type_combo, value=ip_port,
+                                           to_ids=network_ids, comment=isight_alert.protocol)
+        else:
+            new_attr = event.add_attribute(category='Network activity', type=ip_type, value=isight_alert.ip,
+                                           to_ids=network_ids, comment=net_comment)
+        if isight_alert.networkType == 'C&C':
+            # Add veris tag to attribute.
+            event.add_attribute_tag('veris:action:malware:variety="C2"', new_attr)
+
+    # If the report contains a domain registrant email address, then create a whois attribute.
+    if isight_alert.registrantEmail:
+        whois_object = MISPObject(name='whois', comment=net_comment)
+        whois_object.add_attribute('registrant-email', value=isight_alert.registrantEmail, to_ids=network_ids)
+        if isight_alert.registrantName:
+            whois_object.add_attribute('registrant-name', value=isight_alert.registrantName, to_ids=False)
+        if isight_alert.domain:
+            whois_object.add_attribute('domain', value=isight_alert.domain, to_ids=network_ids)
+        elif isight_alert.sourceDomain:
+            whois_object.add_attribute('domain', value=isight_alert.sourceDomain, to_ids=network_ids)
+        event.add_object(whois_object)
+
+    # If the report contains a URL, create a url attribute.
+    if isight_alert.url:
+        event.add_attribute(category='Network activity', type='url', value=isight_alert.url, to_ids=network_ids,
+                            comment=net_comment)
+        if isight_alert.networkType == 'C&C':
+            # Add veris tag to attribute.
+            event.add_attribute_tag('veris:action:malware:variety="C2"', isight_alert.url)
+
+    # If the report contains registry information, create a regkey attribute.
+    if isight_alert.registry:
+        event.add_attribute(category='Artifacts dropped', type='regkey', value=isight_alert.registry, to_ids=file_ids)
+
+    # If the report contains a malware family, create a malware-type attribute.
+    if isight_alert.malwareFamily:
+        event.add_attribute(category='Payload installation', type='malware-type', value=isight_alert.malwareFamily,
+                            to_ids=False)
+
+    # If the report contains an actor, create a threat-actor attribute.
+    if isight_alert.actor:
+        # Don't use the threat actor for detection.
+        event.add_attribute(category='Attribution', type='threat-actor', value=isight_alert.actor, to_ids=False)
+
+    # Finally, commit the event additions to the MISP instance.
+    misp_instance.update_event(event)
+
+    # Lastly, publish the event without sending an alert email.
+    # This command expects the event ID instead of a MISPevent as argument.
+    misp_instance.publish(event['id'], alert=False)
+
+
+def process_isight_indicator(a_json):
     """
     Create a pySightAlert instance of the json and make all the mappings
 
@@ -259,41 +506,43 @@ def isight_process_alert_content_element(a_json):
         if this_misp_instance is False:
             raise ValueError("No MISP instance found.")
 
-        threadLimiter.acquire()
+        # Acquire a semaphore (decrease the counter in the semaphore).
+        if PySight_settings.use_threading:
+            threadLimiter.acquire()
 
         # logger.debug("max number %s current number: ", threadLimiter._initial_value, )
-        # logger.debug(p_json)
-        # write it to file
-        # parsing of json to the pySightReport
-        isight_report_instance = pySightReport(a_json)
-        # This comment will be added to every attribute for reference
-        auto_comment = "pySightMisp " + (isight_report_instance.reportId)
 
-        # Create the "reports" subdirectory for storing iSigh reports, if it doesn't exist already
+        # logger.debug(p_json)
+        # Parse the FireEye iSight report
+        isight_report_instance = pySightReport(a_json)
+
+        # Create the "reports" subdirectory for storing iSight reports, if it doesn't exist already.
         if not os.path.exists("reports"):
             os.makedirs("reports")
         f = open("reports/" + isight_report_instance.reportId, 'a')
+        # Write the iSight report into the "reports" subdirectory.
         f.write(json.dumps(a_json, sort_keys=True, indent=4, separators=(',', ': ')))
         f.close()
 
-        # create a MISP event FIXME: Not used
-        # has_previous_event = True
+        # Check whether we already have an event for this reportID.
+        PySight_settings.logger.debug("Checking for existing event with report ID %s", isight_report_instance.reportId)
+        event_id = misp_check_for_previous_event(this_misp_instance, isight_report_instance)
 
-        PySight_settings.logger.debug("checking for previous events with report ID %s", isight_report_instance.reportId)
-        event = misp_check_for_previous_events(this_misp_instance, isight_report_instance)
-
-        if not event:
-            PySight_settings.logger.error("no event! need to create a new one")
+        if not event_id:
+            # Create a new MISP event
+            PySight_settings.logger.error("No existing event found -- will create a new one")
+            create_misp_event(this_misp_instance, isight_report_instance)
         else:
-            # attaching the data to the previously found event
-            if not is_map_alert_to_event(this_misp_instance, event, isight_report_instance, auto_comment):
-                PySight_settings.logger.error("Something went wrong with event mapping")
+            # Add the data to the found event
+            event = this_misp_instance.get_event(event_id, pythonify=True)
+            update_misp_event(this_misp_instance, event, isight_report_instance)
 
-        # reset the instance afterwards
+        # Reset the iSight report instance when done.
         isight_report_instance = None
 
-        # release the limiter
-        threadLimiter.release()
+        # Release the semaphore (increase the counter in the semaphore).
+        if PySight_settings.use_threading:
+            threadLimiter.release()
 
     except AttributeError as e_AttributeError:
         sys, traceback = error_handling(e_AttributeError, a_string="Attribute Error")
@@ -329,232 +578,9 @@ def error_handling(e, a_string):
     return sys, traceback
 
 
-def is_map_alert_to_event(p_misp_instance, new_misp_event, a_isight_alert, a_auto_comment):
+def misp_check_for_previous_event(misp_instance, isight_alert):
     """
-    START THE MAPPING here
-    general info that should be there in every alert
-    internal reference the alert ID
-
-    :return True if maping worked
-            False if an error occured
-    :rtype: Boolean
-    :param p_misp_instance:
-    :type pyMisp:
-    :param a_auto_comment:
-    :type a_auto_comment:
-    :param a_event:
-    :type a_event:
-    :param a_isight_alert:
-    :type a_isight_alert:
-    """
-
-    try:
-        if not isinstance(p_misp_instance, PyMISP):
-            # if this is not the right type
-            PySight_settings.logger.error("Parameter misp instance is not an PyMisp object")
-            return False
-
-        PySight_settings.logger.debug("mapping alert %s", a_isight_alert.reportId)
-        new_misp_event.add_attribute(type='other', value=a_isight_alert.reportId, comment=a_auto_comment, category='Internal reference')
-
-        # Start Tagging here
-        # this Tag migth be custom, that is why it will be created:
-        p_misp_instance.new_tag('iSight', exportable=True)  # FIXME: Don't do that for each event.
-        new_misp_event.add_tag('iSight')
-
-        # TLP change it if you want to change default TLP
-        new_misp_event.add_tag('tlp:amber')
-
-        # General detected by a security system. So reflect in a tag
-        new_misp_event.add_tag('veris:discovery_method="Prt - monitoring service"')
-        # Severity Tag + Threat level of the Event
-        if a_isight_alert.riskRating:
-            PySight_settings.logger.debug("risk: %s", a_isight_alert.riskRating)
-            if a_isight_alert.riskRating == 'High':
-                new_misp_event.add_tag('csirt_case_classification:criticality-classification="1"')
-                # upgrade Threat level if set already
-                new_misp_event.threat_level_id = 1
-            elif a_isight_alert.alert_severity == 'minr':
-                new_misp_event.add_tag('csirt_case_classification:criticality-classification="3"')
-                new_misp_event.add_tag('veris:impact:overall_rating = "Insignificant"')
-                new_misp_event.threat_level_id = 3
-            else:
-                new_misp_event.add_tag('csirt_case_classification:criticality-classification="3"')
-                new_misp_event.add_tag('veris:impact:overall_rating = "Unknown"')
-                new_misp_event.threat_level_id = 4
-        else:
-            PySight_settings.logger.info("No Event severity found")
-
-        if a_isight_alert.ThreatScape:
-            if a_isight_alert.ThreatScape == 'Espionage' or a_isight_alert.ThreatScape == 'cyberEspionage':
-                new_misp_event.add_tag('veris:actor:motive="Espionage"')
-            elif a_isight_alert.ThreatScape == 'hacktivism':
-                new_misp_event.add_tag('veris:actor:external:variety="Activist"')
-            elif a_isight_alert.ThreatScape == 'cyberCrime' or a_isight_alert.ThreatScape == 'Cyber Crime':
-                new_misp_event.add_tag('veris:actor:external:variety="Organized crime"')
-
-        # Add tag if APT is in the title:
-        if "APT" in a_isight_alert.title:
-            new_misp_event.add_tag('APT')
-            new_misp_event.add_tag('Threat Type="APT"')
-
-        # Url of the original Alert
-        if a_isight_alert.reportLink:
-            new_misp_event.add_attribute(type='link', value=a_isight_alert.reportLink, to_ids=False, comment="reportLink: {}".format(a_auto_comment))
-
-        # File infos
-        if a_isight_alert.md5:
-            PySight_settings.logger.debug("Malware within the event %s", a_isight_alert.md5)
-            new_file_object = MISPObject(name='file', standalone=False)
-            new_file_object.add_attribute('filename', a_isight_alert.fileName, to_ids=False)
-            new_file_object.add_attribute('md5', a_isight_alert.md5, to_ids=False)
-            new_file_object.add_attribute('sha1', a_isight_alert.sha1, to_ids=False)
-            new_file_object.add_attribute('sha256', a_isight_alert.sha256, to_ids=False)
-            if not (a_isight_alert.description is None):
-                new_file_object.comment = '{} Name of file {}'.format(a_auto_comment, a_isight_alert.description)
-            else:
-                new_file_object.comment = '{} Name of file'.format(a_auto_comment)
-            new_misp_event.add_object(new_file_object)
-
-        # if not (iSight_alert.fileSize is None):
-        #        misp_instance.add_internal_text(event, iSight_alert.fileSize, False, auto_comment + "  File size in bytes")
-        if not (a_isight_alert.fuzzyHash is None):
-            # FIXME: probably better to attach to an existing MISPObject of type file
-            new_misp_event.add_attribute(type='text', value=a_isight_alert.fuzzyHash, category='Internal reference', comment=a_auto_comment + "{} File fuzzy (ssdeep) hash".format(a_auto_comment))
-
-        if a_isight_alert.fileIdentifier and a_isight_alert.fileIdentifier is not None:
-            desc = ""
-            if a_isight_alert.fileIdentifier == "Attacker":
-                desc = "Indicators confirmed to host malicious content, has functioned as a commandand-control (C2) server, and/or otherwise acted as a source of malicious activity."
-            elif a_isight_alert.fileIdentifier == "Compromised":
-                desc = "Indicators confirmed to host malicious content due to compromise or abuse. The exact time and length of compromise is unknown unless disclosed within the report."
-
-            elif a_isight_alert.fileIdentifier == "Related":
-                desc = 'Indicators likely related to an attack but potentially only partially confirmed. Detailed by one or more methods, like passive DNS, geo-location, and connectivity detection.'
-            elif a_isight_alert.fileIdentifier == "Victim":
-                desc = "Indicators representing an entity that has been confirmed to have been victimized by malicious activity, where actors have attempted or succeeded to compromise."
-
-            new_misp_event.add_attribute(type='other', value=a_isight_alert.fileIdentifier, category='Internal reference', comment="{} File characterization {}".format(a_auto_comment, desc))
-
-        desc = ""
-
-        for network in a_isight_alert.networks_array:
-            if network.networkType == "C&C":
-                desc = "Indicators confirmed to host malicious content, has functioned as a commandand-control (C2) server, and/or otherwise acted as a source of malicious activity."
-                PySight_settings.logger.debug("Network indicator found")
-                attribute = new_misp_event.add_attribute(type='domain', value=network.domain, comment='{} domain {}'.format(desc, a_auto_comment))
-                attribute.add_tag('veris:action:malware:variety="C2"')
-
-                # p_misp_instance.add_tag()
-                PySight_settings.logger.error("added " + network.domain)
-
-                # for temp in result_attribute['Event']['Attribute']:
-                #    attribute_id = temp
-                #    break
-                # TODO: that needs to be reviewed
-                # TODO: make it a config value what to do with C2, PAP X Y Z
-                # p_misp_instance.add_tag(attribute_id, "PAP:WHITE", attribute=True)
-
-        if a_isight_alert.networkIdentifier and a_isight_alert.networkIdentifier is not None:
-            desc = ""
-            if a_isight_alert.networkIdentifier == "Attacker":
-                # TODO: Then something is C2?!
-                a_isight_alert.isCommandAndControl = True
-                desc = "Indicators confirmed to host malicious content, has functioned as a commandand-control (C2) server, and/or otherwise acted as a source of malicious activity."
-            elif a_isight_alert.networkIdentifier == "Compromised":
-                desc = "Indicators confirmed to host malicious content due to compromise or abuse. The exact time and length of compromise is unknown unless disclosed within the report."
-
-            elif a_isight_alert.networkIdentifier == "Related":
-                desc = 'Indicators likely related to an attack but potentially only partially confirmed. Detailed by one or more methods, like passive DNS, geo-location, and connectivity detection.'
-            elif a_isight_alert.networkIdentifier == "Victim":
-                desc = "Indicators representing an entity that has been confirmed to have been victimized by malicious activity, where actors have attempted or succeeded to compromise."
-
-        if a_isight_alert.fileType:
-            new_misp_event.add_attribute(type='other', value=a_isight_alert.fileType, category='Internal reference', comment="{} File format".format(a_auto_comment))
-
-        if a_isight_alert.packer:
-            new_misp_event.add_attribute(type='other', value=a_isight_alert.packer, category='Internal reference', comment="{} Packer used on file".format(a_auto_comment))
-        if a_isight_alert.registryHive:
-            new_misp_event.add_attribute(type='other', value=a_isight_alert.registryHive, category='Internal reference', comment="{} Hive value of registry used".format(a_auto_comment))
-        if a_isight_alert.registryKey:
-            new_misp_event.add_attribute(type='other', value=a_isight_alert.registryKey, category='Internal reference', comment="{} Key of registry used".format(a_auto_comment))
-        if a_isight_alert.registryValue:
-            new_misp_event.add_attribute(type='other', value=a_isight_alert.registryValue, category='Internal reference', comment="{} Value of registry key used".format(a_auto_comment))
-
-        # Threat Actor
-        if a_isight_alert.actorId and a_isight_alert.actorId is not None and a_isight_alert.actorId != 'None':
-            new_misp_event.add_attribute(type='threat-actor', value=a_isight_alert.actorId, comment=a_auto_comment)
-
-        if a_isight_alert.actor and a_isight_alert.actor is not None:
-            new_misp_event.add_attribute(type='threat-actor', value=a_isight_alert.actor, comment=a_auto_comment)
-
-        # Domain
-        if a_isight_alert.domain:
-            PySight_settings.logger.debug("Network indicator found")
-            new_attribute = new_misp_event.add_attribute(type='domain', value=a_isight_alert.domain, comment='{} domain {}'.format(desc, a_auto_comment))
-            # TODO: that needs to be reviewed
-            # TODO: make it a config value what to do with C2, PAP X Y Z
-            new_attribute.add_tag('PAP:WHITE')
-            # TODO: Add custom Tag if that is C2 as soon as https://github.com/MISP/MISP/issues/802 is completed
-        if a_isight_alert.ip:
-            PySight_settings.logger.debug("IP indicator found")
-            # TODO Activcate that again maybe?!
-            # data_basic_search_ip(PySight_settings.isight_url, PySight_settings.isight_pub_key, PySight_settings.isight_priv_key, a_isight_alert.ip)
-            # TODO: Add custom Tag if that is C2 as soon as https://github.com/MISP/MISP/issues/802 is completed
-            new_misp_event.add_attribute(type='ip-dst', value=a_isight_alert.ip, comment='{} ip {}'.format(desc, a_auto_comment))
-
-        if a_isight_alert.isCommandAndControl:
-            new_misp_event.add_tag('veris:action:malware:variety="C2"')
-
-        if not (a_isight_alert.url is None):
-            new_misp_event.add_attribute(type='url', value=a_isight_alert.url, comment='url {}'.format(a_auto_comment))
-
-        has_email = False
-        new_email_object = MISPObject(name='email', standalone=False)
-        # if attack was by E-Mail
-        if a_isight_alert.senderAddress:
-            new_email_object.add_attribute('from', value=a_isight_alert.senderAddress, to_ids=False, comment='senderAddress {}'.format(a_auto_comment))
-            has_email = True
-        if a_isight_alert.subject:
-            new_email_object.add_attribute('subject', value=a_isight_alert.subject, to_ids=False, comment='E-mail subject {}'.format(a_auto_comment))
-            has_email = True
-        if a_isight_alert.senderName:
-            new_email_object.add_attribute('from-display-name', value=a_isight_alert.senderName, to_ids=False, comment='E-mail sender name {}'.format(a_auto_comment))
-            has_email = True
-        if a_isight_alert.sourceDomain:
-            attr = new_misp_event.add_attribute(type='domain', value=a_isight_alert.sourceDomain, comment='E-mail source domain {}'.format(a_auto_comment))
-            if has_email:
-                new_email_object.add_reference(attr.uuid, 'related-to', 'E-mail source domain')
-        if a_isight_alert.emailLanguage:
-            attr = new_misp_event.add_attribute(type='other', value=a_isight_alert.emailLanguage, category='Internal reference', comment='E-mail language {}'.format(a_auto_comment))
-            if has_email:
-                new_email_object.add_reference(attr.uuid, 'related-to', 'E-mail language')
-        if has_email:
-            new_misp_event.add_object(new_email_object)
-        p_misp_instance.add_event(new_misp_event)
-    except TypeError:
-        # sys, traceback = error_handling(e,a_string="Type Error")
-        import sys
-        PySight_settings.logger.error("TypeError error: %s", sys.exc_info[0])
-        return False
-    except AttributeError:
-        # sys, traceback = error_handling(e,a_string="Attribute Error")
-        import sys
-        PySight_settings.logger.error("Attribute Error %s", sys.exc_info()[0])
-    except Exception:
-        import sys
-        PySight_settings.logger.error("General Error %s", sys.exc_info()[0])
-        return False
-
-    return True
-
-
-def misp_check_for_previous_events(misp_instance, isight_alert):
-    """
-    Default: no previous event detected
-
-    check for:
-        alert_id | ['alert']['id']
+    Default: No event exists for this iSight report ID.
 
     :param misp_instance:
     :type misp_instance:
@@ -562,66 +588,32 @@ def misp_check_for_previous_events(misp_instance, isight_alert):
     :type isight_alert:
     :return:
         event id if an event is there
-        false if no event is present
+        false if no event exists yet
     :rtype:
     """
     event = False
 
     if misp_instance is None:
-        PySight_settings.logger.error("No misp instance given")
+        PySight_settings.logger.error("No MISP instance given.")
         return False
 
-    # Based on alert id
+    # Search based on report ID.
     if isight_alert.reportId:
-        result = misp_instance.search_all(isight_alert.reportId)
-        PySight_settings.logger.debug("searched in MISP for %s result: %s", isight_alert.reportId, result)
-        event = check_misp_all_result(result)
+        result = misp_instance.search(value=isight_alert.reportId, type_attribute='text', category="External analysis")
+        PySight_settings.logger.debug("Searched in MISP for iSight report ID %s. Result: %s", isight_alert.reportId, result)
+        # If something was found in the MISP instance, then retrieve the event
+        if result:
+            event = check_misp_all_results(result)
 
-    # Based on Alert Url
-    if isight_alert.reportLink and not event:
-        from urllib import quote
+    # If no event found, search based on report URL.
+    if isight_alert.webLink and not event:
+        result = misp_instance.search(value=isight_alert.webLink,
+                                      type_attribute='link', category='External analysis')
+        PySight_settings.logger.debug("Searched in MISP for %s. Result: %s", isight_alert.webLink, result)
+        # If something was found in the MISP instance, then retrieve the event
+        if result:
+            event = check_misp_all_results(result)
 
-        result = misp_instance.search_all(quote(isight_alert.reportLink))
-        PySight_settings.logger.debug("searching in MISP for %s result: %s", isight_alert.reportLink, result)
-
-        event = check_misp_all_result(result)
-
-    # if one of the above returns a value:
-    previous_event = event
-    # this looks hacky but it to avoid exceptions if there is no ['message within the result']
-
-    if previous_event is not '' and previous_event is not False and previous_event is not None:
-        PySight_settings.logger.debug("Will append my data to: %s", previous_event)
-        event = misp_instance.get(str(previous_event))  # not get_event!
-    else:
-        PySight_settings.logger.debug("Will create a new event for it")
-        event = MISPEvent()
-
-        if isight_alert.publishDate:
-            new_date = time.strftime('%Y-%m-%d', time.localtime(float(isight_alert.publishDate)))
-            PySight_settings.logger.debug("Date will be %s title: %s ID %s", new_date, isight_alert.title,
-                                          isight_alert.reportId)
-            try:
-                event.distribution = 0
-                event.threat_level_id = 2
-                event.analysis = 0
-                event.info = isight_alert.title + " pySightSight " + isight_alert.reportId
-                event.set_date(new_date)
-            except Exception:
-                import sys
-                print("Unexpected error:", sys.exc_info()[0])
-        else:
-            event.distribution = 0
-            event.threat_level_id = 2
-            event.analysis = 0
-            event.info = isight_alert.title + " pySightSight " + isight_alert.reportId
-
-    if not event:
-        PySight_settings.logger.error("Something went really wrong")
-        event.distribution = 0
-        event.threat_level_id = 2
-        event.analysis = 0
-        event.info = isight_alert.title + " pySightSight " + isight_alert.reportId
     return event
 
 
@@ -668,23 +660,19 @@ def data_text_search_sensitive_reports(url, public_key, private_key):
     isight_prepare_data_request(url, text_search_query, public_key, private_key)
 
 
-def data_search_indicators_last_hours(url, public_key, private_key):
-    hours = PySight_settings.isight_last_hours
-    # Convert hours to seconds
+def isight_search_indicators(base_url, public_key, private_key, hours):
+    # Convert hours to seconds and subtract them from the current time
     since = int(time.time()) - hours * 60 * 60
-    return data_search_indicators_since(url, public_key, private_key, since)
-
-
-def data_search_indicators_since(url, public_key, private_key, since):
-    print("text_search_sensitive_reports Response:")
 
     # Limit the returned data to that published since this Epoch datetime and the present time.
+    # Therefore, add the 'since' parameter as a query string.
     params = {
         'since': since
     }
+    search_query = '/view/indicators?' + urllib.parse.urlencode(params)
+
     # Retrieve indicators and warning data since the specified date and time.
-    text_search_query = '/view/indicators?' + urllib.parse.urlencode(params)
-    return isight_prepare_data_request(url, text_search_query, public_key, private_key)
+    return isight_prepare_data_request(base_url, search_query, public_key, private_key)
 
 
 def data_advanced_search_filter_indicators(url, public_key, private_key):
@@ -765,46 +753,48 @@ def test_isight_connection():
         return True
 
 
-def misp_process_isight_alert(a_result):
+def misp_process_isight_indicators(a_result):
     """
     :param a_result:
     :type a_result:
     """
 
-    for i in a_result['message']:
-        PySight_settings.logger.debug("  %s current element %s", len(a_result['message']), i)
+    # Process each indicator in the JSON message
+    for indicator in a_result['message']:
+        PySight_settings.logger.debug("  %s current element %s", len(a_result['message']), indicator)
 
-        # USING THREADS to proceed with the resulting JSON
         if PySight_settings.use_threading:
-            t = threading.Thread(target=isight_process_alert_content_element, args=(i,))
+            # Use threads to process the indicators
+            # First, set the maximum number of threads
+            threadLimiter = threading.BoundedSemaphore(PySight_settings.number_threads)
+            # Define a thread
+            t = threading.Thread(target=process_isight_indicator, args=(indicator,))
+            # Start the thread
             t.start()
         else:
-            # NO THREADING
-            isight_process_alert_content_element(i)
+            # No threading
+            process_isight_indicator(indicator)
             PySight_settings.logger.debug("Sleeping for %s seconds", PySight_settings.time_sleep)
             time.sleep(PySight_settings.time_sleep)
 
 
 if __name__ == '__main__':
-    # Initialize PyMISP
-    misp_instance = get_misp_instance()
-
     # TODO: not yet finished to parse the report!
     # data_search_report(isight_url, public_key, private_key, "16-00014614")
 
-    # this is to log the time used to run the script
+    # This is to log the time used to run the script
     from timeit import default_timer as timer
     start = timer()
 
-    # Retrieve FireEye iSight indicators of the last x hours
-    result = data_search_indicators_last_hours(PySight_settings.isight_url, PySight_settings.isight_pub_key,
-                                               PySight_settings.isight_priv_key)
+    # Retrieve FireEye iSight indicators of the last x hours.
+    result = isight_search_indicators(PySight_settings.isight_url, PySight_settings.isight_pub_key,
+                                      PySight_settings.isight_priv_key, PySight_settings.isight_last_hours)
     if result is False:
-        print("no result")
+        print("No indicators available from FireEye iSight.")
+    else:
+        misp_process_isight_indicators(result)
 
-    misp_process_isight_alert(result)
     end = timer()
-
     print("Time taken %s", end - start)
 
     # data_test(isight_url,public_key,private_key)
