@@ -2,12 +2,12 @@ import configparser as ConfigParser
 import logging
 
 
-try:
-    from pymisp import PyMISP
-    from pymisp import init_misp
-    HAVE_PYMISP = True
-except:
-    HAVE_PYMISP = False
+#try:
+#    from pymisp import PyMISP
+#    from pymisp import init_misp
+#    HAVE_PYMISP = True
+#except:
+#    HAVE_PYMISP = False
 
 
 # Initialize the config parser
@@ -29,7 +29,6 @@ config.read('config.cfg')
 
 use_threading = config.getboolean('general', 'use_threading')
 number_threads = config.getint('general', 'number_threads')
-time_sleep = config.getint('general', 'time_sleep')
 
 isight_url = config.get('isight', 'isight_url')
 isight_priv_key = config.get('isight', 'isight_priv_key')

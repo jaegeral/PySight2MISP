@@ -11,16 +11,15 @@
 # https://docs.fireeye.com/iSight/index.html#/indicators
 #
 
-import re
-
 from datetime import datetime
 import logging
-#import sys
+# Regular expressions are not used yet.
+# Potentially they might be required to split registry fields into hive, key and value.
+#import re
 import time
 
 #reload(sys)
 #sys.setdefaultencoding('utf-8')
-
 
 # Initialize the logger
 logging.basicConfig(level=logging.DEBUG)
@@ -172,6 +171,7 @@ class pySightReport (object):
             self.fileType = str(p_alert_json['fileType'])
         if 'packer' in p_alert_json and p_alert_json['packer'] is not None:
             self.packer = str(p_alert_json['packer'])
+        # TODO: Ideally, the registry field would be separated into hive, key and value.
         if 'registry' in p_alert_json and p_alert_json['registry'] is not None:
             self.registry = str(p_alert_json['registry'])
         if 'fileCompilationDateTime' in p_alert_json and p_alert_json['fileCompilationDateTime'] is not None:

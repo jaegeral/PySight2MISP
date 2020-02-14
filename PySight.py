@@ -333,14 +333,27 @@ def update_misp_event(misp_instance, event, isight_alert):
     else:
         network_ids = False
 
+    # Use malwareFamily as the default comment.
+    if isight_alert.malwareFamily:
+        default_comment = isight_alert.malwareFamily
+    else:
+        default_comment = ''
+
     # If the alert contains email indicators, create an email object.
     if isight_alert.emailIdentifier:
-        # If emailLanguage is provided, use it as a comment.
+        # If emailLanguage is provided, add it to the default comment.
         if isight_alert.emailLanguage:
-            email_comment = 'Email language: ' + isight_alert.emailLanguage
+            add_comment = 'Email language: ' + isight_alert.emailLanguage
+            if default_comment == '':
+                email_comment = add_comment
+            else:
+                email_comment = default_comment + '; ' + add_comment
         else:
-            email_comment = ''
-        email_object = MISPObject(name='email', comment=email_comment)
+            email_comment = default_comment
+        # Create the object.
+        email_object = MISPObject('email')
+        email_object.comment = email_comment
+        # Add attributes to the object.
         if isight_alert.senderAddress:
             email_object.add_attribute('from', value=isight_alert.senderAddress, to_ids=email_ids)
         if isight_alert.senderName:
@@ -354,23 +367,30 @@ def update_misp_event(misp_instance, event, isight_alert):
         if isight_alert.senderDomain:
             domain_attribute = event.add_attribute(category='Network activity', type='domain', value=isight_alert.senderDomain, to_ids=False)
             email_object.add_reference(domain_attribute.uuid, 'derived-from', comment='Email source domain')
-        # Finally, add the object to the event.
+        # Lastly, add the object to the event.
         event.add_object(email_object)
 
     # If the report contains an MD5 hash, create a file object.
     if isight_alert.md5:
-        # If a description is given, use it as a comment.
+        # If a file description is given, add it to the default comment.
         if isight_alert.description:
-            file_comment = isight_alert.description
+            add_comment = isight_alert.description
+            if default_comment == '':
+                file_comment = add_comment
+            else:
+                file_comment = default_comment + '; ' + add_comment
         else:
-            file_comment = ''
-        file_object = MISPObject(name='file', comment=file_comment)
+            file_comment = default_comment
+        # Create the object.
+        file_object = MISPObject('file')
+        file_object.comment = file_comment
+        # Add attributes to the object.
         file_object.add_attribute('md5', value=isight_alert.md5, to_ids=file_ids)
         if isight_alert.sha1:
             file_object.add_attribute('sha1', value=isight_alert.sha1, to_ids=file_ids)
         if isight_alert.sha256:
             file_object.add_attribute('sha256', value=isight_alert.sha256, to_ids=file_ids)
-        if isight_alert.fileName and isight_alert.fileName is not 'UNAVAILABLE':
+        if isight_alert.fileName and not isight_alert.fileName == 'UNAVAILABLE' and not isight_alert.fileName.upper() == 'UNKNOWN':
             # Don't use filenames for detection.
             file_object.add_attribute('filename', value=isight_alert.fileName, to_ids=False)
         if isight_alert.fileSize:
@@ -378,7 +398,7 @@ def update_misp_event(misp_instance, event, isight_alert):
             file_object.add_attribute('size-in-bytes', value=isight_alert.fileSize, to_ids=False)
         if isight_alert.fuzzyHash:
             file_object.add_attribute('ssdeep', value=isight_alert.fuzzyHash, to_ids=file_ids)
-        if isight_alert.fileType:
+        if isight_alert.fileType and not isight_alert.fileType == 'fileType':
             # Don't use file type for detection.
             file_object.add_attribute('text', value=isight_alert.fileType, to_ids=False)
         if isight_alert.fileCompilationDateTime:
@@ -387,38 +407,67 @@ def update_misp_event(misp_instance, event, isight_alert):
             file_object.add_attribute('compilation-timestamp', value=str(compile_date), to_ids=False)
         if isight_alert.filePath:
             file_object.add_attribute('path', value=isight_alert.filePath, to_ids=False)
+        # Lastly, add the object to the event.
         event.add_object(file_object)
 
     # If the report contains a user agent string, create a user-agent attribute.
     if isight_alert.userAgent:
-        event.add_attribute(category='Network activity', type='user-agent', value=isight_alert.userAgent, to_ids=network_ids)
+        event.add_attribute(category='Network activity', type='user-agent', value=isight_alert.userAgent,
+                            to_ids=network_ids, comment=default_comment)
 
     # If the report contains an ASN, create an AS attribute.
     if isight_alert.asn:
         # Don't use the ASN for detection.
-        event.add_attribute(category='Network activity', type='AS', value=isight_alert.asn, to_ids=False)
-
-    # Set the default comment for network objects. Ideally, this would be networkType, but unfortunately the provided
-    # values are too generic. Instead, we use malwareFamily.
-    if isight_alert.malwareFamily:
-        net_comment=isight_alert.malwareFamily
-    else:
-        net_comment=''
+        event.add_attribute(category='Network activity', type='AS', value=isight_alert.asn, to_ids=False,
+                            comment=default_comment)
 
     # If the report contains a domain, create a hostname attribute (because iSight domain names are in fact hostnames).
     if isight_alert.domain:
-        event.add_attribute(category='Network activity', type='hostname', value=isight_alert.domain, to_ids=network_ids,
-                            comment=net_comment)
+        # If an IP address is provided with a hostname, put the IP address in a comment, possibly in addition to the
+        # default network comment.
+        if isight_alert.ip:
+            add_comment = 'Resolves to ' + isight_alert.ip
+            if default_comment == '':
+                temp_comment = add_comment
+            else:
+                temp_comment = default_comment + '; ' + add_comment
+        else:
+            temp_comment = default_comment
+        # If a protocol is provided, also add it to the comment.
+        if isight_alert.protocol:
+            add_comment = isight_alert.protocol
+            if temp_comment == '':
+                host_comment = add_comment
+            else:
+                host_comment = temp_comment + '; ' + add_comment
+        else:
+            host_comment = temp_comment
+        # Add the attribute to the event. If a port use provided, use a combined attribute.
+        if isight_alert.port:
+            host_port = isight_alert.domain + '|' + isight_alert.port
+            new_attr = event.add_attribute(category='Network activity', type='hostname|port', value=host_port,
+                                           to_ids=network_ids, comment=host_comment)
+        else:
+            new_attr = event.add_attribute(category='Network activity', type='hostname', value=isight_alert.domain,
+                                           to_ids=network_ids, comment=host_comment)
         if isight_alert.networkType == 'C&C':
             # Add veris tag to attribute.
-            event.add_attribute_tag('veris:action:malware:variety="C2"', isight_alert.domain)
+            event.add_attribute_tag('veris:action:malware:variety="C2"', new_attr)
             # If the above tagging command doesn't work try:
             # my_attribute = event.add_attribute(...)
             # my_attribute.add_tag('tag')
-
-    # If the report contains an IP address, create an ip-src or ip-dst attribute.
+    # If the report doesn't contain a hostname but contains an IP address, create an ip-src or ip-dst attribute.
     # TODO: Is there a better way to determine whether it's a source or destination IP address?
-    if isight_alert.ip:
+    elif isight_alert.ip:
+        # Add the protocol to the comment if it is provided by iSight.
+        if isight_alert.protocol:
+            add_comment = isight_alert.protocol
+            if default_comment == '':
+                ip_comment = add_comment
+            else:
+                ip_comment = default_comment + '; ' + add_comment
+        else:
+            ip_comment = default_comment
         if isight_alert.networkIdentifier == 'Attacker':
             # Might be source or destination, but likelihood of source is higher.
             ip_type = 'ip-src'
@@ -440,17 +489,18 @@ def update_misp_event(misp_instance, event, isight_alert):
             type_combo = ip_type + '|port'
             ip_port = isight_alert.ip + '|' + isight_alert.port
             new_attr = event.add_attribute(category='Network activity', type=type_combo, value=ip_port,
-                                           to_ids=network_ids, comment=isight_alert.protocol)
+                                           to_ids=network_ids, comment=ip_comment)
         else:
             new_attr = event.add_attribute(category='Network activity', type=ip_type, value=isight_alert.ip,
-                                           to_ids=network_ids, comment=net_comment)
+                                           to_ids=network_ids, comment=ip_comment)
         if isight_alert.networkType == 'C&C':
             # Add veris tag to attribute.
             event.add_attribute_tag('veris:action:malware:variety="C2"', new_attr)
 
     # If the report contains a domain registrant email address, then create a whois attribute.
     if isight_alert.registrantEmail:
-        whois_object = MISPObject(name='whois', comment=net_comment)
+        whois_object = MISPObject('whois')
+        whois_object.comment = default_comment
         whois_object.add_attribute('registrant-email', value=isight_alert.registrantEmail, to_ids=network_ids)
         if isight_alert.registrantName:
             whois_object.add_attribute('registrant-name', value=isight_alert.registrantName, to_ids=False)
@@ -463,14 +513,25 @@ def update_misp_event(misp_instance, event, isight_alert):
     # If the report contains a URL, create a url attribute.
     if isight_alert.url:
         event.add_attribute(category='Network activity', type='url', value=isight_alert.url, to_ids=network_ids,
-                            comment=net_comment)
+                            comment=default_comment)
         if isight_alert.networkType == 'C&C':
             # Add veris tag to attribute.
             event.add_attribute_tag('veris:action:malware:variety="C2"', isight_alert.url)
 
     # If the report contains registry information, create a regkey attribute.
+    # Ideally, the registry field would be split into hive, key and value.
     if isight_alert.registry:
-        event.add_attribute(category='Artifacts dropped', type='regkey', value=isight_alert.registry, to_ids=file_ids)
+        # If a file description is given, add it to the default comment.
+        if isight_alert.description:
+            add_comment = isight_alert.description
+            if default_comment == '':
+                reg_comment = add_comment
+            else:
+                reg_comment = default_comment + '; ' + add_comment
+        else:
+            reg_comment = default_comment
+        event.add_attribute(category='Artifacts dropped', type='regkey', value=isight_alert.registry, to_ids=file_ids,
+                            comment=reg_comment)
 
     # If the report contains a malware family, create a malware-type attribute.
     if isight_alert.malwareFamily:
@@ -736,23 +797,6 @@ def data_text_search_filter(url, public_key, private_key):
         return False
 
 
-def data_test(url, public_key, private_key):
-    PySight_settings.logger.debug("test the api:")
-    # title phrase search
-    text_search_query = '/test'
-    isight_prepare_data_request(url, text_search_query, public_key, private_key)
-
-
-# Test the FireEye iSight API by retrieving a sample report
-def test_isight_connection():
-    result = data_test(PySight_settings.isight_url, PySight_settings.isight_pub_key, PySight_settings.isight_priv_key)
-    if not result:
-        return False
-    else:
-        PySight_settings.logger.debug("else %s", result)
-        return True
-
-
 def misp_process_isight_indicators(a_result):
     """
     :param a_result:
@@ -774,14 +818,9 @@ def misp_process_isight_indicators(a_result):
         else:
             # No threading
             process_isight_indicator(indicator)
-            PySight_settings.logger.debug("Sleeping for %s seconds", PySight_settings.time_sleep)
-            time.sleep(PySight_settings.time_sleep)
 
 
 if __name__ == '__main__':
-    # TODO: not yet finished to parse the report!
-    # data_search_report(isight_url, public_key, private_key, "16-00014614")
-
     # This is to log the time used to run the script
     from timeit import default_timer as timer
     start = timer()
@@ -797,8 +836,6 @@ if __name__ == '__main__':
     end = timer()
     print("Time taken %s", end - start)
 
-    # data_test(isight_url,public_key,private_key)
-    #
     # data_ioc(url, public_key, private_key)
     # data_text_search_simple(isight_url, public_key, private_key)
     # data_text_search_filter(isight_url, public_key, private_key)
