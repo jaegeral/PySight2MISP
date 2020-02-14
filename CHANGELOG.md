@@ -1,22 +1,36 @@
+PySight 1.1.1 (2020-02-14)
+===========================
+- Don't create filename attributes when the file's name is UNKNOWN (case insensitive).
+- Improvements to comments of attributes and objects.
+- Don't create ip address attributes when the IP address is provided in addition to a hostname.
+- Remove the function to test connectivity to the FireEye iSight API.
+- Create hostname|port attributes if both values are provided by FireEye iSight.
+- Fix a mistake in adding comments to MISP objects.
+- Remove the option to sleep in non-threaded processing.
+
+PySight 1.1 (2020-02-11)
+===========================
+- Add configuration option for number of threads.
+- Intercept response code 204 from FireEye iSight API.
+- Differentiate whether a proxy shall be used for the FireEye iSight API, for MISP, or for both.
+- Proper handling of publishDate data in pySightReport.py.
+- Replace PyMISP with ExpandedPyMISP.
+- Expand mapping of iSight fields to MISP objects, attributes and tags.
+
 PySight 1.0.10 (2019-08-07)
 ===========================
-
 - remove proxymanager
 
 PySight 1.0.10 (2017-09-02)
 ===========================
-
 - added Tag for C2 Attribute based
-
 
 PySight 1.0.9 (2017-04-03)
 ===========================
-
 - fixed date issue with reports (strings instead of float values in seconds)
 
 PySight 1.0.8 (2017-01-25)
 ===========================
-
 - started with attribute level tagging
 - made it python3 ready
 - adjusted the requirements
@@ -40,30 +54,24 @@ PySight 1.0.6 (2016-11-04)
 - initial version to be used with prod MISP
 - fixed time / date issue
 
-
 PySight 0.0.6 (2016-10-31)
 ===========================
-
 - introducing test cases
 - code cleaning
 - new signatures for some methods
 
-
 PySight 0.0.5 (2016-09-29)
 ===========================
-
 - disable log messages from the Requests library
 - remove file size temporary to reduce noise in an event
 
 PySight 0.0.4 (2016-09-27)
 ===========================
-
 - https://git.gcert.basf.net/fireeye/PySight/issues/3
 - https://git.gcert.basf.net/fireeye/PySight/issues/5
 
 PySight 0.0.3 (2016-09-26)
 ===========================
-
 - modified pySightReport
 - error handling
 - better correlation
@@ -74,13 +82,10 @@ PySight 0.0.3 (2016-09-26)
 
 PySight 0.0.2 (2016-09-21)
 ===========================
-
-- added pyISightReport.py
+- added pySightReport.py
 - added Changelog
 - API with iSight is working
 
-
 PySight 0.0.1 (2016-09-20)
 ===========================
-
 init

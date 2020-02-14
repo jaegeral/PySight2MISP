@@ -2,12 +2,12 @@ import configparser as ConfigParser
 import logging
 
 
-try:
-    from pymisp import PyMISP
-    from pymisp import init_misp
-    HAVE_PYMISP = True
-except:
-    HAVE_PYMISP = False
+#try:
+#    from pymisp import PyMISP
+#    from pymisp import init_misp
+#    HAVE_PYMISP = True
+#except:
+#    HAVE_PYMISP = False
 
 
 # Initialize the config parser
@@ -28,7 +28,7 @@ logger.addHandler(fileHandler)
 config.read('config.cfg')
 
 use_threading = config.getboolean('general', 'use_threading')
-time_sleep = config.getint('general', 'time_sleep')
+number_threads = config.getint('general', 'number_threads')
 
 isight_url = config.get('isight', 'isight_url')
 isight_priv_key = config.get('isight', 'isight_priv_key')
@@ -40,8 +40,9 @@ misp_key = config.get('MISP', 'misp_key')
 misp_verifycert = config.getboolean('MISP', 'misp_verifycert')
 
 
-USE_PROXY = config.getboolean('proxy', 'use_proxy')
-if USE_PROXY:
+USE_ISIGHT_PROXY = config.getboolean('proxy', 'use_isight_proxy')
+USE_MISP_PROXY = config.getboolean('proxy', 'use_misp_proxy')
+if USE_ISIGHT_PROXY or USE_MISP_PROXY:
     PROXY_HOST = config.get('proxy', 'host')
     PROXY_PORT = config.get('proxy', 'port')
     PROXY_PROTOCOL = config.get('proxy', 'protocol')
