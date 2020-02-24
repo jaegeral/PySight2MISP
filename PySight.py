@@ -452,10 +452,7 @@ def update_misp_event(misp_instance, event, isight_alert):
                                            to_ids=network_ids, comment=host_comment)
         if isight_alert.networkType == 'C&C':
             # Add veris tag to attribute.
-            event.add_attribute_tag('veris:action:malware:variety="C2"', new_attr)
-            # If the above tagging command doesn't work try:
-            # my_attribute = event.add_attribute(...)
-            # my_attribute.add_tag('tag')
+            new_attr.add_tag('veris:action:malware:variety="C2"')
     # If the report doesn't contain a hostname but contains an IP address, create an ip-src or ip-dst attribute.
     # TODO: Is there a better way to determine whether it's a source or destination IP address?
     elif isight_alert.ip:
@@ -495,7 +492,7 @@ def update_misp_event(misp_instance, event, isight_alert):
                                            to_ids=network_ids, comment=ip_comment)
         if isight_alert.networkType == 'C&C':
             # Add veris tag to attribute.
-            event.add_attribute_tag('veris:action:malware:variety="C2"', new_attr)
+            new_attr.add_tag('veris:action:malware:variety="C2"')
 
     # If the report contains a domain registrant email address, then create a whois attribute.
     if isight_alert.registrantEmail:
