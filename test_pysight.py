@@ -1,8 +1,8 @@
 import unittest
 
 import PySight_settings
-from PySight import misp_process_isight_alert,data_search_report,test_isight_connection, misp_delete_events, \
-    isight_process_alert_content_element, get_misp_instance,data_search_indicators_since
+from PySight import misp_process_isight_indicators, data_search_report, test_isight_connection, misp_delete_events, \
+    process_isight_indicator, get_misp_instance, isight_search_indicators
 
 
 class OnlineTestCases(unittest.TestCase):
@@ -15,7 +15,9 @@ class OnlineTestCases(unittest.TestCase):
         import time
         since = int(time.time()) - 720 * 60 * 60
         print (since)
-        return_value = data_search_indicators_since(private_key=PySight_settings.isight_priv_key,public_key=PySight_settings.isight_pub_key,since=since,url=PySight_settings.isight_url)
+        return_value = isight_search_indicators(base_url=PySight_settings.isight_url,
+                                                public_key=PySight_settings.isight_pub_key,
+                                                private_key=PySight_settings.isight_priv_key, hours=720)
         import json
         print(json.dumps(return_value, sort_keys=True, indent=4))
         self.assertIsNotNone(return_value)
@@ -25,13 +27,13 @@ class OnlineTestCases(unittest.TestCase):
         import time
         since = int(time.time()) - 720 * 60 * 60
         print(since)
-        return_value = data_search_indicators_since(private_key=PySight_settings.isight_priv_key,
-                                                    public_key=PySight_settings.isight_pub_key, since=since,
-                                                    url=PySight_settings.isight_url)
+        return_value = isight_search_indicators(base_url=PySight_settings.isight_url,
+                                                public_key=PySight_settings.isight_pub_key,
+                                                private_key=PySight_settings.isight_priv_key, hours=720)
         import json
         print(json.dumps(return_value, sort_keys=True, indent=4))
 
-        misp_process_isight_alert(return_value)
+        misp_process_isight_indicators(return_value)
 
         self.assertIsNotNone(return_value)
 
@@ -58,7 +60,7 @@ class OnlineTestCases(unittest.TestCase):
     def test_get_specific_report(self):
         localmisp = get_misp_instance()
         result = data_search_report(url=PySight_settings.isight_url,private_key=PySight_settings.isight_priv_key,public_key=PySight_settings.isight_pub_key,a_reportid="16-00017916")
-        misp_process_isight_alert(result)
+        misp_process_isight_indicators(result)
 
 
         #result = data_search_indicators_last24_h(PySight_settings.isight_url, PySight_settings.isight_pub_key,
@@ -71,7 +73,7 @@ class OfflineTestCases(unittest.TestCase):
         json_data = json.load(open("test_data/example_indicator.json"))
         PySight_settings.logger.debug(json.dumps(json_data['message'], sort_keys=True, indent=4))
         #for i in json_data['message']:
-        returnvalue = isight_process_alert_content_element(json_data['message'])
+        returnvalue = process_isight_indicator(json_data['message'])
         #logger.debug("hols %s",json.dumps(i, sort_keys=True, indent=4))
 
         #returnvalue = pySightReport(json_data['message'])
@@ -85,7 +87,7 @@ class OfflineTestCases(unittest.TestCase):
         json_data = json.load(open("test_data/example_report.json"))
         PySight_settings.logger.debug(json.dumps(json_data['message'], sort_keys=True, indent=4))
         # for i in json_data['message']:
-        returnvalue = isight_process_alert_content_element(json_data['message'])
+        returnvalue = process_isight_indicator(json_data['message'])
         # logger.debug("hols %s",json.dumps(i, sort_keys=True, indent=4))
 
         # returnvalue = pySightReport(json_data['message'])
@@ -99,7 +101,7 @@ class OfflineTestCases(unittest.TestCase):
         json_data = json.load(open("test_data/real/16-00014704.json"))
         PySight_settings.logger.debug(json.dumps(json_data['report'], sort_keys=True, indent=4))
         # for i in json_data['message']:
-        returnvalue = isight_process_alert_content_element(json_data['report'])
+        returnvalue = process_isight_indicator(json_data['report'])
         # logger.debug("hols %s",json.dumps(i, sort_keys=True, indent=4))
 
         # returnvalue = pySightReport(json_data['message'])
@@ -115,7 +117,7 @@ class OfflineTestCases(unittest.TestCase):
         #logger.debug(json.dumps(json_data['message'], sort_keys=True, indent=4))
 
         # for i in json_data['message']:
-        returnvalue = isight_process_alert_content_element(json_data['message'])
+        returnvalue = process_isight_indicator(json_data['message'])
         # logger.debug("hols %s",json.dumps(i, sort_keys=True, indent=4))
 
         # returnvalue = pySightReport(json_data['message'])
