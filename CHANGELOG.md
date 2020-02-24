@@ -1,3 +1,9 @@
+PySight 1.1.2 (2020-02-24)
+===========================
+- Tagging of attributes didn't work yet. This bug has been fixed.
+- Updated the example config file.
+- Tried to make test_pysight.py work again, but didn't succeed.
+
 PySight 1.1.1 (2020-02-14)
 ===========================
 - Don't create filename attributes when the file's name is UNKNOWN (case insensitive).
