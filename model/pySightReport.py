@@ -40,10 +40,10 @@ class pySightReport (object):
 
         # General information
         self.reportId = None
-        self.title = None # Cutwail Botnet Distributes Recruitment Mass Mailings
+        self.title = None  # Cutwail Botnet Distributes Recruitment Mass Mailings
         self.publishDate = None  # 1469544180
         self.ThreatScape = None  # Cyber Espionage
-        self.riskRating = None # High
+        self.riskRating = None  # High
         self.audience = None  # Operational
         self.intelligenceType = None  # threat / malware / vulnerability / overview
         self.reportLink = None  # https:#api.isightpartners.com/report/16-00011458
@@ -71,6 +71,9 @@ class pySightReport (object):
         self.fileType = None  # Rich Text Format data, version 1, ANSI
         self.packer = None  # Armadillo v1.xx - v2.xx
         self.registry = None  # HKEY_LOCAL_MACHINE\SOFTWARE\CBSTEST
+        self.registryHive = None  # HKEY_LOCAL_MACHINE
+        self.registryKey = None  # Software\Microsoft\Windows\CurrentVersion\RunOnce
+        self.registryValue = None  # SilentApp
         self.fileCompilationDateTime = None  # 1371573858
         self.filePath = None  # /tmp/adversary/test
 
@@ -118,7 +121,7 @@ class pySightReport (object):
             # If publishDate is not in epoch format, i.e. not an integer, we suppose it to be human readable,
             # e.g. "October 11, 2016 07:20:00 AM", and convert it to integer epoch format
             else:
-                logger.debug(p_alert_json['publishDate'])
+                logger.debug('Converting date %s to an epoch format', p_alert_json['publishDate'])
                 date_format = '%B %d, %Y %H:%M:%S %p'
                 datetime_object = datetime.strptime(p_alert_json['publishDate'], date_format)
                 timestamp = time.mktime(datetime_object.timetuple())
@@ -133,7 +136,8 @@ class pySightReport (object):
             self.reportLink = str(p_alert_json['reportLink'])
         if 'webLink' in p_alert_json and p_alert_json['webLink'] is not None:
             self.webLink = str(p_alert_json['webLink'])
-            #and split it to get the ma_id "alert-url": "https://fireeye.foo.bar/event_stream/events_for_bot?ma_id=12345678",
+            # Split it to get the ma_id of the "alert-url"
+            # ("https://fireeye.foo.bar/event_stream/events_for_bot?ma_id=12345678")
             #self.alert_ma_id = (self.alert_url.split("="))[1]
         if 'emailIdentifier' in p_alert_json and p_alert_json['emailIdentifier'] is not None:
             self.emailIdentifier = str(p_alert_json['emailIdentifier'])
@@ -174,13 +178,19 @@ class pySightReport (object):
         # TODO: Ideally, the registry field would be separated into hive, key and value.
         if 'registry' in p_alert_json and p_alert_json['registry'] is not None:
             self.registry = str(p_alert_json['registry'])
+        if 'registryHive' in p_alert_json and p_alert_json['registryHive'] is not None:
+            self.registryHive = str(p_alert_json['registryHive'])
+        if 'registryKey' in p_alert_json and p_alert_json['registryKey'] is not None:
+            self.registryKey = str(p_alert_json['registryKey'])
+        if 'registryValue' in p_alert_json and p_alert_json['registryValue'] is not None:
+            self.registryValue = str(p_alert_json['registryValue'])
         if 'fileCompilationDateTime' in p_alert_json and p_alert_json['fileCompilationDateTime'] is not None:
-            if isinstance(p_alert_json['fileCompilationDateTime'],int):
+            if isinstance(p_alert_json['fileCompilationDateTime'], int):
                 self.fileCompilationDateTime = p_alert_json['fileCompilationDateTime']
-            # If fileCompilationDateTime is not in epoch format, i.e. not an integer, we suppose it to be human readable,
-            # e.g. "October 11, 2016 07:20:00 AM", and convert it to integer epoch format
+            # If fileCompilationDateTime is not in epoch format, i.e. not an integer, we suppose it to be human
+            # readable, e.g. "October 11, 2016 07:20:00 AM", and convert it to integer epoch format.
             else:
-                logger.debug(p_alert_json['fileCompilationDateTime'])
+                logger.debug('Converting timestamp %s to epoch fomat', p_alert_json['fileCompilationDateTime'])
                 date_format = '%B %d, %Y %H:%M:%S %p'
                 datetime_object = datetime.strptime(p_alert_json['fileCompilationDateTime'], date_format)
                 timestamp = time.mktime(datetime_object.timetuple())
@@ -196,12 +206,12 @@ class pySightReport (object):
         if 'domain' in p_alert_json and p_alert_json['domain'] is not None:
             self.domain = str(p_alert_json['domain'])
         if 'domainTimeOfLookup' in p_alert_json and p_alert_json['domainTimeOfLookup'] is not None:
-            if isinstance(p_alert_json['domainTimeOfLookup'],int):
+            if isinstance(p_alert_json['domainTimeOfLookup'], int):
                 self.domainTimeOfLookup = p_alert_json['domainTimeOfLookup']
             # If domainTimeOfLookup is not in epoch format, i.e. not an integer, we suppose it to be human readable,
             # e.g. "October 11, 2016 07:20:00 AM", and convert it to integer epoch format
             else:
-                logger.debug(p_alert_json['domainTimeOfLookup'])
+                logger.debug('Converting timestamp %s to epoch format', p_alert_json['domainTimeOfLookup'])
                 date_format = '%B %d, %Y %H:%M:%S %p'
                 datetime_object = datetime.strptime(p_alert_json['domainTimeOfLookup'], date_format)
                 timestamp = time.mktime(datetime_object.timetuple())
@@ -231,12 +241,12 @@ class pySightReport (object):
         if 'actorId' in p_alert_json and p_alert_json['actorId'] is not None:
             self.actorId = str(p_alert_json['actorId'])
         if 'observationTime' in p_alert_json and p_alert_json['observationTime'] is not None:
-            if isinstance(p_alert_json['observationTime'],int):
+            if isinstance(p_alert_json['observationTime'], int):
                 self.observationTime = p_alert_json['observationTime']
             # If observationTime is not in epoch format, i.e. not an integer, we suppose it to be human readable,
             # e.g. "October 11, 2016 07:20:00 AM", and convert it to integer epoch format
             else:
-                logger.debug(p_alert_json['observationTime'])
+                logger.debug('Converting timestamp %s to epoch format', p_alert_json['observationTime'])
                 date_format = '%B %d, %Y %H:%M:%S %p'
                 datetime_object = datetime.strptime(p_alert_json['observationTime'], date_format)
                 timestamp = time.mktime(datetime_object.timetuple())
@@ -244,4 +254,4 @@ class pySightReport (object):
         if 'riskRating' in p_alert_json and p_alert_json['riskRating'] is not None:
             self.riskRating = str(p_alert_json['riskRating'])
 
-        logger.debug("Parsing finished")
+        logger.debug('Finished parsing %s', p_alert_json)

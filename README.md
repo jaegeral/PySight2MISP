@@ -1,29 +1,31 @@
 # What?
 
-PySight2MISP is a project that can be run to be used as glue between [iSight intel API](https://docs.fireeye.com/iSight/index.html) and [MISP API](https://github.com/CIRCL/PyMISP)
+PySight2MISP is a project that can be run to be used as glue between [iSight intel API](https://docs.fireeye.com/iSight/index.html) and [MISP API](https://github.com/CIRCL/PyMISP).
 
 # Status
 
-This script is not maintaned - if you want to use it, there might be a need to fix a lot of stuff before, but still happy to accept PR
+This script is not maintaned - if you want to use it, there might be a need to fix a lot of stuff before, but still happy to accept PR.
 
 # Why
 
-To get the indicators, IOCs etc from iSight to the MISP system
+To get indicators, IOCs etc. from FireEye iSight into a MISP system.
 
 # How
 
     see INSTALL.md
-    
-You do not need an iSight Account to test the script, there will be test data to test with e.g. a MISP VM.
+
+It is recommended to have a "Publisher" account on the MISP system. A "sync user" account is not sufficient because it 
+doesn't have enough rights (e.g. for tagging events).
+
+You do not need an iSight account to test the script, there is test data to test with, e.g., a MISP VM.
 
 # Roadmap
 
-## short term
+## Short term
 
-* fix [Issues](issues)
-* add C2 as individual attribute based tag
-* add written report details per event
+* Fix [issues](issues).
+* Add written report details per event.
 
-## long term
+## Long term
 
-* migrate stuff to an MISP import module
+* Migrate stuff to a MISP import module.

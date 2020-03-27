@@ -1,7 +1,5 @@
 configparser
-httplib2>=0.8
-nose
-pymisp
+pymisp>=2.4.112
 requests
 simplejson>=3.6.5
 urllib3
