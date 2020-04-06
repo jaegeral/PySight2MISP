@@ -1,3 +1,13 @@
+PySight 1.2 (2020-03-27)
+===========================
+- Add a comment in `README.md` regarding required access rights in MISP.
+- Add a configuration option for the logging level and clean up logging.
+- Bug fix to set the date when iSight doesn't provide a date.
+- FireEye iSight reports can contain multiple ThreatScapes. This is taken into account now.
+- For the malware family in iSight reports, use the "antivirus detection" category in MISP instead of 
+"payload installation".
+- When iSight provides an IP address in combination with a port, we always assume that it's a destination IP address.
+
 PySight 1.1.2 (2020-02-24)
 ===========================
 - Tagging of attributes didn't work yet. This bug has been fixed.

@@ -1,4 +1,4 @@
-'''
+"""
 "network": [
                     {
                         "domain": "in-travelusa.com",
@@ -8,7 +8,7 @@
                         "networkType": "C&C",
                         "identifier": "Attacker"
                     },
-'''
+"""
 
 class iSightNetwork:
     def __init__(self,a_network_json):
