@@ -13,6 +13,7 @@ Alexander Jaeger
 See CHANGELOG.md for history
 """
 
+import _thread
 import datetime
 import email.utils
 import hashlib
@@ -506,13 +507,19 @@ def get_misp_instance():
 
 
 # Process one FireEye iSight report and convert it into a MISP events.
-def process_isight_indicator(a_json):
+def process_isight_indicator(isight_json, t_semaphore, t_lock):
     """
     Create a pySightAlert instance of the json and make all the mappings
 
-    :param a_json:
-    :type a_json:
+    :param isight_json:
+    :type isight_json:
     """
+
+    # Acquire a semaphore (decrease the counter in the semaphore).
+    t_semaphore.acquire()
+    PySight_settings.logger.debug("Starting thread number %s out of max. %s threads", threading.active_count(),
+                                  PySight_settings.number_threads)
+    PySight_settings.logger.debug('Processing report %s', isight_json['reportId'])
 
     try:
         # Get a MISP instance per thread
@@ -522,24 +529,22 @@ def process_isight_indicator(a_json):
         if this_misp_instance is False:
             raise ValueError("No MISP instance found.")
 
-        # Acquire a semaphore (decrease the counter in the semaphore).
-        if PySight_settings.use_threading:
-            thread_limiter.acquire()
-        # PySight_settings.logger.debug("max number %s current number: ", thread_limiter._initial_value, )
-
         # Parse the FireEye iSight report
-        isight_report_instance = pySightReport(a_json)
+        isight_report_instance = pySightReport(isight_json)
 
-        # If in DEBUG mode, write the iSight reports to a file.
+        # If in DEBUG mode, write the iSight reports to a file
         if PySight_settings.debug_mode:
-            # Create the "reports" subdirectory for storing iSight reports, if it doesn't exist already.
+            # Create the "reports" subdirectory for storing iSight reports, if it doesn't exist already
             if not os.path.exists("reports"):
                 os.makedirs("reports")
             f = open("reports/" + isight_report_instance.reportId, 'a')
             # Write the iSight report into the "reports" subdirectory.
-            f.write(json.dumps(a_json, sort_keys=True, indent=4, separators=(',', ': ')))
+            f.write(json.dumps(isight_json, sort_keys=True, indent=4, separators=(',', ': ')))
             f.close()
 
+        # Lock multithreading until a MISP event is created
+        # Otherwise, parallel threads might create separate MISP events for one iSight report
+        t_lock.acquire()
         # Check whether we already have an event for this reportID.
         PySight_settings.logger.debug('Checking for existing event with report ID %s', isight_report_instance.reportId)
         event_id = misp_check_for_previous_event(this_misp_instance, isight_report_instance)
@@ -549,7 +554,9 @@ def process_isight_indicator(a_json):
             PySight_settings.logger.debug('No event found for report ID %s -- will create a new one',
                                           isight_report_instance.reportId)
             create_misp_event(this_misp_instance, isight_report_instance)
+            t_lock.release()
         else:
+            t_lock.release()
             # Add the data to the found event
             event = this_misp_instance.get_event(event_id, pythonify=True)
             update_misp_event(this_misp_instance, event, isight_report_instance)
@@ -557,19 +564,20 @@ def process_isight_indicator(a_json):
         # Reset the iSight report instance when done.
         isight_report_instance = None
 
-        # Release the semaphore (increase the counter in the semaphore).
-        if PySight_settings.use_threading:
-            thread_limiter.release()
-
     except AttributeError as e_AttributeError:
         sys, traceback = error_handling(e_AttributeError, a_string="Attribute Error")
+        t_semaphore.release()
         return False
     except TypeError as e_TypeError:
         sys, traceback = error_handling(e_TypeError, a_string="Type Error:")
+        t_semaphore.release()
         return False
     except Exception as e_Exception:
         sys, traceback = error_handling(e_Exception, a_string="General Error:")
+        t_semaphore.release()
         return False
+
+    t_semaphore.release()
 
 
 # Process all FireEye iSight reports and convert them to MISP events.
@@ -579,21 +587,14 @@ def misp_process_isight_indicators(a_result):
     :type a_result:
     """
 
+    # Use both a semaphore and lock for threading.
+    thread_limiter = threading.Semaphore(PySight_settings.number_threads)
+    thread_locker = _thread.allocate_lock()
+
     # Process each indicator in the JSON message
     for indicator in a_result['message']:
-        PySight_settings.logger.debug('Processing report %s', indicator['reportId'])
-
-        if PySight_settings.use_threading:
-            # Use threads to process the indicators
-            # First, set the maximum number of threads
-            thread_limiter = threading.BoundedSemaphore(value=PySight_settings.number_threads)
-            # Define a thread
-            t = threading.Thread(target=process_isight_indicator, args=(indicator,))
-            # Start the thread
-            t.start()
-        else:
-            # No threading
-            process_isight_indicator(indicator)
+        # Define and start a thread
+        threading.Thread(target=process_isight_indicator, args=(indicator, thread_limiter, thread_locker)).start()
 
 
 # Make the FireEye iSight API request.

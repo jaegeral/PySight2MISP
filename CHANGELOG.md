@@ -1,3 +1,9 @@
+PySight 1.3 (2020-05-08)
+===========================
+- It seems that threading finally works.
+- Don't log Pymisp output in debug mode to avoid disclosure of authorization keys.
+- Remove simplejson from the requirements as it isn't used. Instead, list datetime as a requirement.
+
 PySight 1.2 (2020-03-27)
 ===========================
 - Add a comment in `README.md` regarding required access rights in MISP.
