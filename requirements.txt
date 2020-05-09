@@ -1,5 +1,5 @@
 configparser
+datetime
 pymisp>=2.4.112
 requests
-simplejson>=3.6.5
 urllib3

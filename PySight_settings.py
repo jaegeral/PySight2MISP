@@ -10,7 +10,12 @@ config.read('config.cfg')
 
 LOG_LEVEL = config.get('general', 'log_level')
 use_threading = config.getboolean('general', 'use_threading')
-number_threads = config.getint('general', 'number_threads')
+# If threading is requested, set the number of threads according to the configuration.
+# Otherwise only use one thread.
+if use_threading:
+    number_threads = config.getint('general', 'number_threads')
+else:
+    number_threads = 1
 
 isight_url = config.get('isight', 'isight_url')
 isight_priv_key = config.get('isight', 'isight_priv_key')
@@ -38,7 +43,8 @@ logger = logging.getLogger(__name__)
 # Set the loglevel, also for imported modules.
 if LOG_LEVEL.upper() == 'DEBUG':
     logger.setLevel(logging.DEBUG)
-    logging.getLogger('pymisp').setLevel(logging.DEBUG)
+    # Pymisp DEBUG logging would include the authorization key which we want to avoid
+    logging.getLogger('pymisp').setLevel(logging.INFO)
     logging.getLogger('urllib3').setLevel(logging.DEBUG)
     debug_mode = True
 elif LOG_LEVEL.upper() == 'INFO':
